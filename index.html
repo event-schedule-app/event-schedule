@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>イベント予定表</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:light;
+  --paper:#f2f5f4; --grid:#dbe8ee; --panel:#ffffff; --ink:#1b2247; --ink2:#525a7d; --rule:#8fbbd8;
+  --warn:#c9302c; --focus:#2d78e0;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#11152b; --grid:#1c2645; --panel:#1a2040; --ink:#e9ecf8; --ink2:#a5add0; --rule:#3c5f8c;
+    --warn:#ff6259; --focus:#6aa6ff;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#11152b; --grid:#1c2645; --panel:#1a2040; --ink:#e9ecf8; --ink2:#a5add0; --rule:#3c5f8c;
+  --warn:#ff6259; --focus:#6aa6ff;
+}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
+body{
+  margin:0;min-height:100%;color:var(--ink);background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:22px 22px;
+  font:400 15px/1.65 'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic UI','Noto Sans JP',sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+h1,h2,h3,p{margin:0}
+
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--paper);border-bottom:2.5px solid var(--ink);display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px}
+.top h1{flex:1;min-width:0;font:400 19px/1.3 'Dela Gothic One','Zen Kaku Gothic New',sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ib{min-width:44px;min-height:44px;border:0;background:transparent;cursor:pointer;font-size:22px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:repeat(4,1fr);background:var(--paper);border-top:2.5px solid var(--ink);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs button{border:0;background:transparent;cursor:pointer;padding:7px 0 6px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:12px;font-weight:700;min-height:52px}
+.tabs svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tabs [aria-current="page"]{background:var(--ink);color:var(--paper)}
+main{max-width:680px;margin:0 auto;padding:16px 14px 170px}
+.fab{position:fixed;right:14px;bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:19}
+
+.btn{border:2.5px solid var(--ink);background:var(--panel);color:var(--ink);padding:8px 16px;min-height:44px;cursor:pointer;font-weight:700;box-shadow:3px 3px 0 var(--ink);border-radius:0}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.btn.pri{background:var(--ink);color:var(--paper)}
+.btn.danger{color:var(--warn);border-color:var(--warn);box-shadow:3px 3px 0 var(--warn)}
+.btn.sm{min-height:38px;padding:5px 12px;font-size:14px}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0 4px}
+.f{margin:0 0 18px}
+.lab,.f>label{display:block;font-weight:700;font-size:13px;margin-bottom:6px}
+input[type=text],input[type=email],input[type=password],input[type=number],input[type=time],input[type=date],input[type=search],select,textarea{
+  width:100%;box-sizing:border-box;border:2px solid var(--ink);background:var(--panel);color:var(--ink);
+  font:inherit;font-size:16px;padding:9px 10px;border-radius:0;min-height:44px}
+textarea{min-height:180px;resize:vertical;line-height:25.5px;padding-top:6px;
+  background-image:linear-gradient(transparent 24px,var(--grid) 24px);background-size:100% 25.5px;background-attachment:local}
+.row3{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hint{font-size:12.5px;color:var(--ink2);margin-top:6px}
+.quick{display:flex;gap:8px;margin-top:6px}
+.swatches{display:flex;flex-wrap:wrap;gap:10px}
+.sw{width:38px;height:38px;border:2.5px solid var(--ink);background:var(--c);cursor:pointer;padding:0}
+.sw[aria-pressed="true"]{outline:3px solid var(--focus);outline-offset:2px}
+
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px 3px 0;border:1.5px solid var(--ink);background:var(--panel);
+  font-size:13px;font-weight:700;line-height:1.4;margin:0 6px 6px 0;border-radius:0;cursor:default}
+button.chip{cursor:pointer}
+.chip>i{width:6px;align-self:stretch;background:var(--c,var(--ink));display:block}
+.chip.pick{opacity:.55;border-style:dashed;background:transparent}
+.chip.pick.on{opacity:1;border-style:solid;background:var(--panel)}
+.chip.pick.on b::before{content:'✓ '}
+.chip.dim{opacity:.55}
+
+.filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.day{font:400 21px/1.2 'Dela Gothic One','Zen Kaku Gothic New',sans-serif;margin:28px 0 12px;display:flex;align-items:center;gap:12px}
+.day::after{content:'';flex:1;height:9px;color:var(--ink);background-image:radial-gradient(currentColor 1.1px,transparent 1.7px);background-size:6px 6px}
+.rail{margin-left:12px;padding-left:24px;border-left:3px dashed var(--rule)}
+.gap{font-size:12.5px;font-weight:700;color:var(--ink2);margin:-2px 0 8px}
+.panel{position:relative;margin:0 0 14px;background:var(--panel);border:2.5px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:0 0 10px;cursor:pointer}
+.panel::before{content:'';position:absolute;left:-33px;top:13px;width:15px;height:15px;box-sizing:border-box;background:var(--paper);border:3px solid var(--ink);border-radius:50%}
+.ph{display:flex;align-items:stretch;border-bottom:2.5px solid var(--ink)}
+.ph time{background:var(--ink);color:var(--paper);font:400 15px/1 'Dela Gothic One',sans-serif;padding:0 11px;display:flex;align-items:center;white-space:nowrap}
+.ph h3{flex:1;min-width:0;padding:7px 10px;font-size:16px;line-height:1.4}
+.warnb{background:var(--warn);color:#fff;font-size:12px;font-weight:700;padding:0 8px;display:flex;align-items:center}
+.pb{padding:10px 12px 0}
+.place-tag{display:inline-block;font-size:12.5px;font-weight:700;color:var(--ink2);margin-bottom:8px}
+.excerpt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line;margin-top:4px;color:var(--ink2);font-size:14px}
+
+.now{background:var(--panel);border:2.5px solid var(--ink);box-shadow:4px 4px 0 var(--ink);margin-bottom:6px}
+.sl{display:flex;align-items:center;gap:8px;margin:0 0 14px}
+.sl input{flex:1;accent-color:var(--ink);height:32px}
+.counters{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:16px 0}
+.cn{background:var(--panel);border:2.5px solid var(--ink);padding:8px 2px 6px;text-align:center}
+.cn b{display:block;font:400 28px/1.15 'Dela Gothic One',sans-serif}
+.cn span{font-size:11.5px;font-weight:700;color:var(--ink2)}
+.pl{background:var(--panel);border:2.5px solid var(--ink);margin-bottom:12px;padding:10px 12px 4px}
+.pl h3{font-size:15px;margin-bottom:2px}
+.pl .last{font-size:12.5px;color:var(--ink2);margin:0 0 8px}
+
+.list{display:grid;gap:12px}
+.card{display:grid;grid-template-columns:8px 1fr;column-gap:12px;text-align:left;width:100%;background:var(--panel);border:2.5px solid var(--ink);box-shadow:3px 3px 0 var(--ink);padding:10px 12px 10px 0;cursor:pointer}
+.card .bar{grid-row:1/3;background:var(--c,var(--ink));margin:-10px 0}
+.card .nm{font-weight:700;font-size:16px}
+.card .sub{font-size:13px;color:var(--ink2)}
+.empty{background:var(--panel);border:2.5px dashed var(--ink);padding:26px 18px;text-align:center}
+.empty h2{font:400 20px/1.4 'Dela Gothic One',sans-serif;margin-bottom:8px}
+.empty p{color:var(--ink2);margin-bottom:16px}
+.empty .actions{justify-content:center}
+
+.sheet{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center}
+.sheet-back{position:absolute;inset:0;background:rgba(10,14,35,.6)}
+.sheet-panel{position:relative;width:100%;max-width:680px;max-height:92vh;max-height:92dvh;overflow:auto;background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:22px 22px;
+  border:2.5px solid var(--ink);border-bottom:0;padding:0 16px calc(28px + env(safe-area-inset-bottom,0px));animation:up .22s ease-out;overscroll-behavior:contain}
+.sheet-head{position:sticky;top:0;z-index:2;background:var(--paper);display:flex;align-items:center;justify-content:space-between;margin:0 -16px 16px;padding:4px 4px 4px 16px;border-bottom:2.5px solid var(--ink)}
+.sheet-head h2{font:400 16px/1.3 'Dela Gothic One',sans-serif}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.detail h2{font:400 22px/1.4 'Dela Gothic One',sans-serif;margin-bottom:6px}
+.story{white-space:pre-wrap;background:var(--panel);border:2px solid var(--ink);padding:12px;margin:10px 0 16px;line-height:1.85}
+.story.none{color:var(--ink2);border-style:dashed}
+.warns{list-style:none;padding:0;margin:8px 0 0}
+.warns li{padding:6px 10px;margin-bottom:6px;background:var(--panel);border-left:5px solid var(--warn);font-size:13.5px}
+.warns li::before{content:'重複の可能性  ';font-weight:700;color:var(--warn)}
+.hist{display:block;width:100%;text-align:left;background:var(--panel);border:2px solid var(--ink);padding:8px 10px;margin-bottom:8px;cursor:pointer}
+.hist small{display:block;color:var(--ink2);font-size:12px}
+.io{width:100%;min-height:150px;margin-top:10px;font-size:13px}
+.toast{position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:9px 16px;font-weight:700;z-index:120;max-width:88vw;text-align:center}
+#gate{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:22px 22px}
+.gate-box{max-width:420px;width:100%;background:var(--panel);border:2.5px solid var(--ink);box-shadow:5px 5px 0 var(--ink);padding:24px 20px;text-align:center}
+.gate-box h2{font:400 24px/1.3 'Dela Gothic One',sans-serif;margin-bottom:10px}
+.gate-box p{color:var(--ink2);margin-bottom:14px;overflow-wrap:anywhere}
+.gate-box .actions{justify-content:center}
+body.at-home .tabs{display:none}
+.gate-box input{margin-bottom:10px}
+.gate-box form{margin:0}
+.or{display:flex;align-items:center;gap:10px;font-size:12.5px;font-weight:700;color:var(--ink2);margin:18px 0 12px!important}
+.or::before,.or::after{content:'';flex:1;height:2px;background:var(--rule)}
+.linkbtn{border:0;background:none;padding:6px 4px;min-height:36px;cursor:pointer;color:var(--focus);font-weight:700;font-size:13.5px;text-decoration:underline}
+.gate-links{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;margin:4px 0 0!important}
+.err{color:var(--warn)!important;font-weight:700;font-size:13.5px;margin:8px 0 0!important}
+.err:empty{display:none}
+.wide{width:100%}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;border:1.5px solid currentColor;padding:0 6px;margin-left:6px;color:var(--ink2);vertical-align:1px}
+.acc .btn{flex:none}
+.acc{display:flex;align-items:center;gap:8px;background:var(--panel);border:2px solid var(--ink);padding:4px 4px 4px 10px;margin-bottom:8px;overflow-wrap:anywhere}
+.acc span{flex:1;min-width:0;font-size:14px}
+.sync{font-size:11.5px;font-weight:700;color:var(--ink2);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+@media (min-width:700px){.fab{right:calc(50% - 326px)}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <button class="ib" id="back" data-act="home" aria-label="プロジェクト一覧に戻る" hidden style="margin-left:-8px;font-size:28px">‹</button>
+  <h1 id="ttl">イベント予定表</h1>
+  <span class="sync" id="sync" aria-live="polite"></span>
+  <button class="btn sm" id="shareBtn" data-act="share" hidden>共有</button>
+  <button class="ib" data-act="menu" aria-label="メニューを開く">⋯</button>
+</header>
+<main id="view"></main>
+<button class="btn pri fab" id="fab" data-act="new-scene">＋ 予定を追加</button>
+
+<nav class="tabs" aria-label="表示切り替え">
+  <button data-act="tab" data-tab="timeline"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v18M6 7h13M6 12h9M6 17h13"/></svg>予定表</button>
+  <button data-act="tab" data-tab="snap"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5"/><rect x="13.5" y="3" width="7.5" height="7.5"/><rect x="3" y="13.5" width="7.5" height="7.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5"/></svg>配置</button>
+  <button data-act="tab" data-tab="people"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg>メンバー</button>
+  <button data-act="tab" data-tab="places"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>場所</button>
+</nav>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-back" data-act="close-sheet"></div>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-head"><h2 id="sheetTitle"></h2><button class="ib" data-act="close-sheet" aria-label="閉じる">×</button></div>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<div id="gate"><div class="gate-box"><h2>読み込み中</h2><p>少しお待ちください。</p></div></div>
+
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,sendEmailVerification,sendPasswordResetEmail} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {initializeFirestore,getFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,onSnapshot,writeBatch,setDoc,updateDoc,query,where,arrayUnion,arrayRemove} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+/* ===== ここを自分の Firebase の値に書き換える ===== */
+const firebaseConfig={
+  apiKey:'AIzaSyCrrWbDIPuGTOjUtQeEBSo8swgl3DUvywg',
+  authDomain:'event-schedule-d7fbd.firebaseapp.com',
+  projectId:'event-schedule-d7fbd',
+  storageBucket:'event-schedule-d7fbd.firebasestorage.app',
+  messagingSenderId:'235738665614',
+  appId:'1:235738665614:web:d9630158e43cf1627f6fdf'
+};
+/* ================================================== */
+
+const KEY='place-timeline-v1';
+const COLORS=['#2f5fd0','#d8472f','#1f9a8a','#c48a1a','#8a4fc2','#d0568f','#4f7f2a','#546178'];
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const pad=n=>String(n).padStart(2,'0');
+
+function blank(){return {title:'名称未設定の予定表',chars:[],places:[],scenes:[]};}
+function loadLocal(){try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&Array.isArray(d.scenes)&&Array.isArray(d.chars)&&Array.isArray(d.places))return d;}}catch(e){}return null;}
+let S=blank();
+
+/* ===== クラウド同期 =====
+   プロジェクトを開いている間、S をそのまま編集して save() を呼ぶと、前回の同期内容との差分だけを書き込む */
+const COLS=['chars','places','scenes'];
+const base={chars:new Map(),places:new Map(),scenes:new Map(),title:null};
+const loaded={chars:false,places:false,scenes:false};
+let db=null,auth=null,user=null,projUnsubs=[],listUnsub=null,titleTimer=null;
+let projects=[],projectsLoaded=false,cur=null;
+const myEmail=()=>(user?.email||'').toLowerCase();
+const isOwner=()=>!!cur&&!!user&&cur.data.owner===user.uid;
+const EMAIL_RE=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+function stable(v){if(Array.isArray(v))return '['+v.map(stable).join(',')+']';if(v&&typeof v==='object')return '{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}';return JSON.stringify(v===undefined?null:v);}
+function clean(o){return JSON.parse(JSON.stringify(o));}
+function setSync(t){const el=$('#sync');if(el)el.textContent=t;}
+function commitOps(ops){
+  const chunks=[];for(let i=0;i<ops.length;i+=450)chunks.push(ops.slice(i,i+450));
+  return chunks.reduce((p,ch)=>p.then(()=>{const b=writeBatch(db);ch.forEach(o=>{if(o.k==='set')b.set(o.r,o.v);else if(o.k==='upd')b.update(o.r,o.v);else b.delete(o.r);});return b.commit();}),Promise.resolve());
+}
+function save(){
+  if(!db||!user||!cur)return;
+  const pid=cur.id,ops=[],now=Date.now();
+  ['chars','places'].forEach(col=>S[col].forEach((it,i)=>{if(typeof it.o!=='number')it.o=now+i;}));
+  COLS.forEach(col=>{
+    const seen=new Set();
+    S[col].forEach(it=>{
+      if(!it.id)return;seen.add(it.id);
+      const js=stable(it);
+      if(base[col].get(it.id)!==js){ops.push({k:'set',r:doc(db,'projects',pid,col,it.id),v:clean(it)});base[col].set(it.id,js);}
+    });
+    [...base[col].keys()].forEach(id=>{if(!seen.has(id)){ops.push({k:'del',r:doc(db,'projects',pid,col,id)});base[col].delete(id);}});
+  });
+  const name=(S.title||'').trim()||'無題のプロジェクト';
+  if(name!==base.title){ops.push({k:'upd',r:doc(db,'projects',pid),v:{name}});base.title=name;}
+  if(!ops.length)return;
+  setSync('保存中…');
+  commitOps(ops).then(()=>setSync('保存済み'))
+    .catch(e=>{console.error(e);setSync('保存失敗');toast(e&&e.code==='permission-denied'?'このプロジェクトを編集する権限がありません':'保存できませんでした。通信状態を確認してください');});
+}
+function saveTitleSoon(){clearTimeout(titleTimer);titleTimer=setTimeout(save,700);}
+let rrPending=false;
+function remoteRender(){
+  if(rrPending)return;rrPending=true;
+  requestAnimationFrame(()=>{rrPending=false;
+    if(cur&&!COLS.every(c=>loaded[c]))return;
+    const ae=document.activeElement;
+    if(cur&&ui.tab==='timeline'&&ae&&ae.id==='q'&&$('#tlList'))paintTl();
+    else render();
+    if(cur&&!$('#sheet').hidden&&ed)edWarn();
+    if($('#sh-list'))paintShare();
+  });
+}
+
+/* ----- プロジェクト一覧 ----- */
+function listenProjects(){
+  if(listUnsub)listUnsub();
+  projectsLoaded=false;
+  listUnsub=onSnapshot(query(collection(db,'projects'),where('emails','array-contains',myEmail())),snap=>{
+    const arr=[];snap.forEach(d=>{const v=d.data();v.id=d.id;arr.push(v);});
+    arr.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    projects=arr;projectsLoaded=true;
+    if(cur){
+      const p=arr.find(x=>x.id===cur.id);
+      if(!p){if(!cur.fresh)kicked();}
+      else{
+        cur.fresh=false;cur.data=p;
+        const name=p.name||'無題のプロジェクト';
+        const ae=document.activeElement;
+        if(base.title!==name&&!(ae&&ae.id==='m-title')){S.title=name;base.title=name;}
+      }
+    }
+    remoteRender();
+  },err=>{console.error(err);showGate('接続できません',`プロジェクト一覧を読み込めませんでした(${esc(err.code||err.message)})。Firestore のルールが設定されているか、通信状態を確認してください。`,'<button class="btn" data-act="reload">再読み込み</button><button class="btn" data-act="logout">ログアウト</button>');});
+}
+function openProject(pid,data){
+  closeProject();
+  const p=data||projects.find(x=>x.id===pid);if(!p)return;
+  cur={id:pid,data:p,fresh:!!data};
+  S={title:p.name||'無題のプロジェクト',chars:[],places:[],scenes:[]};
+  COLS.forEach(c=>{base[c]=new Map();loaded[c]=false;});base.title=S.title;
+  ui.tab='timeline';ui.q='';ui.filterChar='';ui.snapIdx=null;
+  setSync('');render();$('#view').innerHTML='<p class="hint">読み込み中…</p>';window.scrollTo(0,0);
+  COLS.forEach(col=>{
+    projUnsubs.push(onSnapshot(collection(db,'projects',pid,col),snap=>{
+      if(!cur||cur.id!==pid)return;
+      const arr=[],m=new Map();
+      snap.forEach(d=>{const v=d.data();v.id=d.id;arr.push(v);m.set(d.id,stable(v));});
+      if(col!=='scenes')arr.sort((a,b)=>(a.o??0)-(b.o??0));
+      S[col]=arr;base[col]=m;loaded[col]=true;
+      setSync(snap.metadata.hasPendingWrites?'保存中…':'同期済み');
+      remoteRender();
+    },err=>{console.error(err);if(cur&&cur.id===pid&&!cur.fresh)kicked();}));
+  });
+}
+function closeProject(){projUnsubs.forEach(u=>u());projUnsubs=[];cur=null;}
+function goHome(){closeProject();closeSheet();S=blank();render();window.scrollTo(0,0);}
+function kicked(){toast('このプロジェクトにアクセスできなくなりました');goHome();}
+function createProject(){
+  const name=($('#np-name').value||'').trim();if(!name){toast('プロジェクト名を入力してください');return;}
+  const ref=doc(collection(db,'projects'));
+  const data={name,owner:user.uid,ownerEmail:myEmail(),emails:[myEmail()],createdAt:Date.now()};
+  setDoc(ref,data).catch(e=>{console.error(e);toast('作成できませんでした('+(e.code||'エラー')+')');goHome();});
+  closeSheet();openProject(ref.id,{...data,id:ref.id});
+}
+function openNewProject(){
+  openSheet('新しいプロジェクト',`<div class="f"><label for="np-name">プロジェクト名</label><input id="np-name" type="text" placeholder="例:学園祭 2026 運営"></div><div class="actions"><button class="btn pri" data-act="proj-create">作成する</button></div>`);
+  setTimeout(()=>$('#np-name')?.focus(),50);
+}
+function renderHome(v){
+  if(!projectsLoaded){v.innerHTML='<p class="hint">読み込み中…</p>';return;}
+  if(!projects.length){
+    v.innerHTML=emptyBlock('まだプロジェクトはありません',`新しく作るか、ほかの人に共有してもらうと、ここに表示されます。共有してもらうときは、ログインしているメールアドレス <b>${esc(myEmail())}</b> を伝えてください。`,'<button class="btn pri" data-act="proj-new">新規作成</button>');
+    return;
+  }
+  v.innerHTML=`<p class="hint" style="margin:0 0 12px">共有されたプロジェクトも、ここに自動で表示されます。</p><div class="list">`+projects.map(p=>{
+    const own=p.owner===user.uid,n=(p.emails||[]).length;
+    return `<button class="card" data-act="proj-open" data-id="${esc(p.id)}"><span class="bar"></span><span class="nm">${esc(p.name||'無題のプロジェクト')}</span><span class="sub">${own?'オーナー:あなた':'オーナー:'+esc(p.ownerEmail||'')}${n>1?`、${n}人で共有`:''}</span></button>`;
+  }).join('')+'</div>';
+}
+
+/* ----- 共有 ----- */
+const appUrl=()=>location.origin+location.pathname;
+function inviteMail(email){
+  const name=cur.data.name||'無題のプロジェクト';
+  const sub=`イベント予定表「${name}」に招待しました`;
+  const body=`イベント予定表「${name}」を共有しました。\n\n下のリンクを開いて、このメールアドレス(${email})でログインしてください。Gmail なら「Google でログイン」、それ以外のメールアドレスなら「アカウントを作成」から登録できます。\n\n${appUrl()}\n`;
+  return `mailto:${email}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+}
+function openShare(){
+  if(!cur)return;
+  openSheet(`「${cur.data.name||'無題のプロジェクト'}」を共有`,`
+  <div class="f"><label for="sh-email">共有する相手のメールアドレス</label><div class="quick" style="margin-top:0"><input id="sh-email" type="email" inputmode="email" autocomplete="off" placeholder="例:name@gmail.com"><button class="btn sm pri" data-act="sh-add">追加</button></div>
+  <p class="hint">Gmail でも、ほかのメールアドレスでも追加できます。追加された人は、そのメールアドレスでログインすると、プロジェクト一覧にこのプロジェクトが表示されます。</p></div>
+  <p class="lab">アクセスできる人</p><div id="sh-list"></div>
+  <p class="hint">アプリから自動でメールは届きません。「招待メール」を押すと、知らせるためのメールがメールアプリで開きます。</p>`);
+  paintShare();
+}
+function paintShare(){
+  const box=$('#sh-list');if(!box||!cur)return;
+  const d=cur.data,own=isOwner(),me=myEmail();
+  const list=(d.emails||[]).slice().sort((a,b)=>(b===d.ownerEmail)-(a===d.ownerEmail));
+  box.innerHTML=list.map(e=>{
+    const tags=(e===d.ownerEmail?'<span class="tag">オーナー</span>':'<span class="tag">編集者</span>')+(e===me?'<span class="tag">あなた</span>':'');
+    const mail=e!==me?`<a class="btn sm" href="${inviteMail(e)}">招待メール</a>`:'';
+    const del=own&&e!==d.ownerEmail?`<button class="btn sm danger" data-act="sh-del" data-email="${esc(e)}">外す</button>`:'';
+    return `<div class="acc"><span>${esc(e)}${tags}</span>${mail}${del}</div>`;
+  }).join('');
+}
+function shareAdd(){
+  const inp=$('#sh-email'),v=(inp.value||'').trim().toLowerCase();
+  if(!EMAIL_RE.test(v)){toast('メールアドレスを正しく入力してください');return;}
+  if((cur.data.emails||[]).includes(v)){toast('すでに共有されています');return;}
+  inp.value='';
+  updateDoc(doc(db,'projects',cur.id),{emails:arrayUnion(v)}).then(()=>toast(v+' と共有しました')).catch(e=>{console.error(e);toast('共有できませんでした');});
+}
+function shareDel(v){updateDoc(doc(db,'projects',cur.id),{emails:arrayRemove(v)}).then(()=>toast('外しました')).catch(e=>{console.error(e);toast('外せませんでした');});}
+function leaveProject(){
+  const pid=cur.id;goHome();
+  updateDoc(doc(db,'projects',pid),{emails:arrayRemove(myEmail())}).then(()=>toast('プロジェクトから抜けました')).catch(e=>{console.error(e);toast('抜けられませんでした');});
+}
+function deleteProject(){
+  const pid=cur.id,ops=[];
+  COLS.forEach(col=>S[col].forEach(it=>ops.push({k:'del',r:doc(db,'projects',pid,col,it.id)})));
+  goHome();
+  commitOps(ops).then(()=>commitOps([{k:'del',r:doc(db,'projects',pid)}])).then(()=>toast('プロジェクトを削除しました')).catch(e=>{console.error(e);toast('削除できませんでした');});
+}
+
+/* ===== ログイン ===== */
+const AUTH_ERR={'auth/invalid-email':'メールアドレスの形式が正しくありません','auth/missing-email':'メールアドレスを入力してください','auth/missing-password':'パスワードを入力してください','auth/weak-password':'パスワードは6文字以上にしてください','auth/email-already-in-use':'このメールアドレスはすでに登録されています。ログインするか、Gmail なら「Google でログイン」を試してください','auth/invalid-credential':'メールアドレスかパスワードが違います','auth/invalid-login-credentials':'メールアドレスかパスワードが違います','auth/wrong-password':'メールアドレスかパスワードが違います','auth/user-not-found':'メールアドレスかパスワードが違います','auth/too-many-requests':'試行回数が多すぎます。しばらく待ってからもう一度試してください','auth/network-request-failed':'通信できませんでした','auth/operation-not-allowed':'このログイン方法が Firebase で有効になっていません','auth/unauthorized-domain':'このサイトのドメインが Firebase の承認済みドメインに入っていません','auth/popup-blocked':'ポップアップがブロックされました'};
+const authMsg=e=>AUTH_ERR[e&&e.code]||('エラーが発生しました('+(e&&e.code||'不明')+')');
+let authMode='login';
+function showGate(title,text,btns){$('#gate').innerHTML=`<div class="gate-box"><h2>${title}</h2><p>${text}</p><div class="actions">${btns||''}</div></div>`;$('#gate').hidden=false;}
+function hideGate(){$('#gate').hidden=true;}
+function showLogin(){
+  const su=authMode==='signup';
+  $('#gate').innerHTML=`<div class="gate-box"><h2>イベント予定表</h2><p>${su?'メールアドレスとパスワードで、新しくアカウントを作ります。':'ログインして、プロジェクトを開きます。'}</p>
+  <button class="btn pri wide" data-act="login-google">Google でログイン</button>
+  <p class="or">またはメールアドレスで</p>
+  <form id="mailForm" novalidate>
+    <input id="lg-email" type="email" autocomplete="email" inputmode="email" placeholder="メールアドレス" aria-label="メールアドレス">
+    <input id="lg-pass" type="password" autocomplete="${su?'new-password':'current-password'}" placeholder="パスワード${su?'(6文字以上)':''}" aria-label="パスワード">
+    <button class="btn wide" type="submit">${su?'アカウントを作成':'ログイン'}</button>
+  </form>
+  <p class="err" id="lg-err" role="alert"></p>
+  <p class="gate-links"><button class="linkbtn" data-act="auth-toggle">${su?'アカウントを持っている':'アカウントを作成'}</button>${su?'':'<button class="linkbtn" data-act="auth-reset">パスワードを忘れた</button>'}</p></div>`;
+  $('#gate').hidden=false;
+}
+function showVerify(){
+  showGate('メールアドレスを確認してください',`<b>${esc(user?.email||'')}</b> に確認メールを送りました。メール内のリンクを開いてから「確認した」を押してください。届かないときは迷惑メールフォルダも見てください。`,
+    '<button class="btn pri" data-act="verify-check">確認した</button><button class="btn" data-act="verify-resend">確認メールを再送</button><button class="btn" data-act="logout">別のアカウントでログイン</button>');
+}
+async function loginGoogle(){
+  const p=new GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
+  try{await signInWithPopup(auth,p);}
+  catch(e){if(e&&(e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment'))await signInWithRedirect(auth,p);else if(e&&e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request'){const el=$('#lg-err');if(el)el.textContent=authMsg(e);}}
+}
+async function submitMail(){
+  const email=($('#lg-email').value||'').trim().toLowerCase(),pass=$('#lg-pass').value,err=$('#lg-err');
+  err.textContent='';
+  if(!EMAIL_RE.test(email)){err.textContent='メールアドレスを正しく入力してください';return;}
+  if(!pass){err.textContent='パスワードを入力してください';return;}
+  try{
+    if(authMode==='signup'){const c=await createUserWithEmailAndPassword(auth,email,pass);await sendEmailVerification(c.user);showVerify();}
+    else await signInWithEmailAndPassword(auth,email,pass);
+  }catch(e){err.textContent=authMsg(e);}
+}
+async function resetPass(){
+  const email=($('#lg-email')?.value||'').trim().toLowerCase(),err=$('#lg-err');
+  if(!EMAIL_RE.test(email)){err.textContent='パスワードを再設定するメールアドレスを上の欄に入力してから押してください';return;}
+  try{await sendPasswordResetEmail(auth,email);err.textContent='';toast('パスワード再設定のメールを送りました');}catch(e){err.textContent=authMsg(e);}
+}
+async function verifyCheck(){
+  try{await auth.currentUser.reload();}catch(e){}
+  if(auth.currentUser&&auth.currentUser.emailVerified){await auth.currentUser.getIdToken(true);user=auth.currentUser;enterApp();}
+  else toast('まだ確認できていません。メールのリンクを開いてから押してください');
+}
+function enterApp(){hideGate();closeProject();S=blank();projects=[];render();listenProjects();}
+function teardown(){if(listUnsub)listUnsub();listUnsub=null;closeProject();projects=[];projectsLoaded=false;closeSheet();S=blank();}
+function boot(){
+  if(!firebaseConfig.apiKey||!firebaseConfig.projectId){showGate('Firebase の設定が必要です','このファイルの上のほうにある <b>firebaseConfig</b> に、自分の Firebase プロジェクトの値を入れてください。');return;}
+  const app=initializeApp(firebaseConfig);
+  try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});}catch(e){db=getFirestore(app);}
+  auth=getAuth(app);auth.languageCode='ja';
+  onAuthStateChanged(auth,u=>{
+    teardown();user=u;
+    if(!u){authMode='login';showLogin();return;}
+    if(!u.emailVerified){showVerify();return;}
+    enterApp();
+  });
+}
+const ui={tab:'timeline',filterChar:'',q:'',snapIdx:null};
+const ch=id=>S.chars.find(c=>c.id===id);
+const pl=id=>S.places.find(p=>p.id===id);
+
+/* 時間 */
+const WD=['日','月','火','水','木','金','土'];
+function todayStr(){const n=new Date();return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;}
+function dayNum(s){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return Math.round((m?Date.UTC(+m[1],+m[2]-1,+m[3]):Date.UTC(2026,0,1))/864e5);}
+function dateStr(n){const d=new Date(n*864e5);return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;}
+function fmtDay(n){const d=new Date(n*864e5);return `${d.getUTCFullYear()}年${d.getUTCMonth()+1}月${d.getUTCDate()}日(${WD[d.getUTCDay()]})`;}
+function ts(sc){const p=String(sc.time||'00:00').split(':');return dayNum(sc.date)*1440+(Number(p[0])||0)*60+(Number(p[1])||0);}
+function fmtTs(t){const d=Math.floor(t/1440),r=t%1440;return `${fmtDay(d)} ${pad(Math.floor(r/60))}:${pad(Math.floor(r%60))}`;}
+function migrate(){if(S.title==='名称未設定の記録帳')S.title='名称未設定の予定表';S.scenes.forEach(s=>{if(!s.date){s.date=dateStr(dayNum(todayStr())+(Number(s.day)||1)-1);delete s.day;}});}
+function fmtClock(t){const r=t%1440;return `${pad(Math.floor(r/60))}:${pad(Math.floor(r%60))}`;}
+function fmtDur(m){m=Math.max(0,Math.round(m));if(m<60)return `${m}分`;const d=Math.floor(m/1440),h=Math.floor((m%1440)/60),mm=m%60;let s='';if(d)s+=`${d}日`;if(h)s+=`${h}時間`;if(mm&&!d)s+=`${mm}分`;return s||'0分';}
+function sortedScenes(list){return (list||S.scenes).slice().sort((a,b)=>ts(a)-ts(b));}
+
+/* メンバーの居場所:その時点までに最後に登場した予定 */
+function placeAt(cid,sorted,n){let seen=false,place=null,sc=null;for(let i=0;i<n;i++){if((sorted[i].members||[]).includes(cid)){seen=true;place=sorted[i].placeId||null;sc=sorted[i];}}return {seen,place,sc};}
+
+/* 矛盾チェック:同時刻に同じメンバーが別々の場所にいる */
+function sceneWarnings(sc,list){
+  const out=[],t=ts(sc);
+  if(!sc.placeId)return out;
+  list.forEach(o=>{
+    if(o===sc||ts(o)!==t||!o.placeId||o.placeId===sc.placeId)return;
+    (sc.members||[]).filter(m=>(o.members||[]).includes(m)).forEach(m=>{
+      const c=ch(m);if(!c)return;
+      out.push(`${c.name}が同じ時刻(${fmtTs(t)})に「${pl(sc.placeId)?.name||'?'}」と「${pl(o.placeId)?.name||'?'}」の両方に割り当てられています(ダブルブッキング)`);
+    });
+  });
+  return out;
+}
+
+/* UI共通 */
+let toastTimer=null;
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,2200);}
+let ed=null,cd=null,pd=null,confirmDel=false;
+function openSheet(title,html){$('#sheetTitle').textContent=title;$('#sheetBody').innerHTML=html;$('#sheet').hidden=false;document.body.style.overflow='hidden';$('.sheet-panel').scrollTop=0;confirmDel=false;}
+function closeSheet(){$('#sheet').hidden=true;$('#sheetBody').innerHTML='';document.body.style.overflow='';ed=cd=pd=null;confirmDel=false;}
+function chip(c,o={}){
+  const tag=o.btn?'button type="button"':'span',end=o.btn?'button':'span',act=o.btn?` data-act="open-char" data-id="${c.id}"`:'';
+  return `<${tag} class="chip ${o.cls||''}" style="--c:${esc(c.color)}"${act}><i></i><b>${esc(c.name)}</b></${end}>`;
+}
+function emptyBlock(title,text,btns){return `<section class="empty"><h2>${title}</h2><p>${text}</p><div class="actions">${btns}</div></section>`;}
+
+/* 年表 */
+function renderTimeline(v){
+  if(!S.scenes.length){
+    v.innerHTML=emptyBlock('まだ予定がありません','メンバーと場所を登録して、「いつ・どこで・誰が・何をするか」を予定として入れていきます。','<button class="btn pri" data-act="new-scene">最初の予定を追加</button><button class="btn" data-act="sample">サンプルを見る</button>');
+    return;
+  }
+  v.innerHTML=`<div class="filters"><input type="search" id="q" placeholder="キーワードで探す" aria-label="キーワードで探す" value="${esc(ui.q)}"><select id="fc" aria-label="メンバーで絞り込む"><option value="">全員の予定</option>${S.chars.map(c=>`<option value="${c.id}" ${ui.filterChar===c.id?'selected':''}>${esc(c.name)}が関わる予定</option>`).join('')}</select></div><div id="tlList"></div>`;
+  paintTl();
+}
+function paintTl(){
+  const sorted=sortedScenes(),q=ui.q.trim().toLowerCase(),fc=ui.filterChar,items=[];
+  sorted.forEach(sc=>{
+    if(fc&&!(sc.members||[]).includes(fc))return;
+    if(q){const hay=[sc.title,sc.text,pl(sc.placeId)?.name,...(sc.members||[]).map(id=>ch(id)?.name)].join(' ').toLowerCase();if(!hay.includes(q))return;}
+    items.push(sc);
+  });
+  const box=$('#tlList');
+  if(!items.length){box.innerHTML='<p class="hint" style="margin-top:20px">条件に合う予定がありません。</p>';return;}
+  let html='',curDay=null,prevT=null;
+  items.forEach(sc=>{
+    const T=ts(sc),d=Math.floor(T/1440);
+    if(d!==curDay){if(curDay!==null)html+='</div>';html+=`<h2 class="day">${fmtDay(d)}</h2><div class="rail">`;curDay=d;}
+    if(prevT!==null&&T>prevT)html+=`<div class="gap">＋${fmtDur(T-prevT)}</div>`;
+    prevT=T;
+    const chips=(sc.members||[]).map(id=>{const c=ch(id);return c?chip(c):'';}).join('');
+    const wn=sceneWarnings(sc,sorted).length,p=pl(sc.placeId);
+    html+=`<article class="panel" role="button" tabindex="0" data-act="open-scene" data-id="${sc.id}"><div class="ph"><time>${fmtClock(T)}</time><h3>${esc(sc.title||'(無題)')}</h3>${wn?`<span class="warnb">重複${wn}</span>`:''}</div><div class="pb">${p?`<span class="place-tag">場所:${esc(p.name)}</span><br>`:''}${chips}${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:''}</div></article>`;
+  });
+  if(curDay!==null)html+='</div>';
+  box.innerHTML=html;
+}
+
+/* 配置 */
+function renderSnap(v){
+  const sorted=sortedScenes();
+  if(!sorted.length){v.innerHTML=emptyBlock('予定がまだありません','予定を追加すると、スライダーで「この時点で誰がどこに配置されているか」を確認できます。','<button class="btn pri" data-act="new-scene">予定を追加</button><button class="btn" data-act="sample">サンプルを見る</button>');return;}
+  if(ui.snapIdx==null||ui.snapIdx>sorted.length-1)ui.snapIdx=sorted.length-1;
+  v.innerHTML=`<div class="sl"><button class="btn sm" data-act="snap-prev" aria-label="前の予定">◀</button><input type="range" id="snapRange" min="0" max="${sorted.length-1}" step="1" value="${ui.snapIdx}" aria-label="予定を選ぶ"><button class="btn sm" data-act="snap-next" aria-label="次の予定">▶</button></div><div id="snapBody"></div>`;
+  paintSnap();
+}
+function paintSnap(){
+  const sorted=sortedScenes(),idx=ui.snapIdx,sc=sorted[idx],T=ts(sc);
+  const rows=S.chars.map(c=>({c,loc:placeAt(c.id,sorted,idx+1)}));
+  const seen=rows.filter(r=>r.loc.seen),unseen=rows.filter(r=>!r.loc.seen);
+  const groups=new Map();
+  seen.forEach(r=>{const k=r.loc.place||'';if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);});
+  const lastAt=new Map();
+  for(let i=0;i<=idx;i++){if(sorted[i].placeId)lastAt.set(sorted[i].placeId,sorted[i]);}
+  const keys=S.places.map(p=>p.id).filter(id=>groups.has(id)||lastAt.has(id));
+  if(groups.has(''))keys.push('');
+  const blocks=keys.map(k=>{
+    const p=k?pl(k):null,last=k?lastAt.get(k):null;
+    const list=(groups.get(k)||[]).map(r=>chip(r.c,{btn:true})).join('');
+    return `<section class="pl"><h3>${p?esc(p.name):'場所が未設定'}</h3>${last?`<p class="last">直近の予定:${fmtTs(ts(last))}「${esc(last.title||'無題')}」</p>`:''}${list||'<p class="hint" style="margin:0 0 8px">この時点でここに配置されているメンバーはいません</p>'}</section>`;
+  }).join('');
+  const p=pl(sc.placeId);
+  $('#snapBody').innerHTML=`<div class="now"><div class="ph"><time>${fmtClock(T)}</time><h3>${esc(sc.title||'(無題)')}</h3></div><div class="pb" style="padding-bottom:4px"><span class="place-tag">${fmtDay(Math.floor(T/1440))}${p?`、場所:${esc(p.name)}`:''}</span>${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:'<p class="hint">この予定の文章はまだありません</p>'}<div class="actions" style="margin:10px 0 6px"><button class="btn sm" data-act="open-scene" data-id="${sc.id}">予定を開く</button></div></div></div>
+  <div class="counters"><div class="cn"><b>${seen.length}</b><span>配置済みのメンバー</span></div><div class="cn"><b>${unseen.length}</b><span>未配置のメンバー</span></div></div>
+  <p class="hint" style="margin:0 0 10px">各メンバーは、この予定までに最後に割り当てられた場所に表示しています。</p>
+  ${blocks||'<p class="hint">まだメンバーが配置されていません。</p>'}
+  ${unseen.length?`<p class="lab" style="margin-top:14px">未配置のメンバー</p>${unseen.map(r=>chip(r.c,{btn:true,cls:'dim'})).join('')}`:''}`;
+}
+function stepSnap(d){const n=ui.snapIdx+d;if(n<0||n>S.scenes.length-1)return;ui.snapIdx=n;$('#snapRange').value=n;paintSnap();}
+
+/* メンバー */
+function renderPeople(v){
+  if(!S.chars.length){v.innerHTML=emptyBlock('メンバーが登録されていません','メンバーを登録しておくと、予定を作るときに選ぶだけで済みます。','<button class="btn pri" data-act="new-char">メンバーを追加</button>');return;}
+  const sorted=sortedScenes();
+  v.innerHTML='<div class="list">'+S.chars.map(c=>{
+    const loc=placeAt(c.id,sorted,sorted.length),p=loc.place?pl(loc.place):null,n=sorted.filter(s=>(s.members||[]).includes(c.id)).length;
+    return `<button class="card" data-act="open-char" data-id="${c.id}" style="--c:${esc(c.color)}"><span class="bar"></span><span class="nm">${esc(c.name)}</span><span class="sub">${loc.seen?`直近の配置:${p?esc(p.name):'不明'}、予定${n}件`:'まだどの予定にも入っていません'}</span></button>`;
+  }).join('')+'</div>';
+}
+function openChar(id){
+  const src=id?ch(id):null;
+  cd=src?{...src}:{id:'',name:'',color:COLORS[S.chars.length%COLORS.length],note:''};
+  const sorted=sortedScenes();
+  let hist='';
+  if(src){
+    const rows=sorted.filter(s=>(s.members||[]).includes(id));
+    hist=`<p class="lab" style="margin-top:26px">割り当てられている予定(${rows.length}件)</p>`+(rows.length?rows.map(s=>`<button class="hist" data-act="open-scene" data-id="${s.id}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}${pl(s.placeId)?`、${esc(pl(s.placeId).name)}`:''}</small></button>`).join(''):'<p class="hint">まだ予定がありません</p>');
+  }
+  openSheet(src?'メンバー':'メンバーを追加',`
+  <div class="f"><label for="c-name">名前</label><input id="c-name" type="text" value="${esc(cd.name)}" placeholder="例:篠崎 ミオ"></div>
+  <div class="f"><span class="lab">識別色</span><div class="swatches" id="c-colors">${COLORS.map(col=>`<button type="button" class="sw" data-act="c-color" data-col="${col}" style="--c:${col}" aria-label="色 ${col}" aria-pressed="${cd.color===col}"></button>`).join('')}</div></div>
+  <div class="f"><label for="c-note">メモ(担当できること・連絡先・都合のつく時間帯など)</label><textarea id="c-note" placeholder="例:設営と力仕事が得意。午後は不在。">${esc(cd.note)}</textarea></div>
+  <div class="actions"><button class="btn pri" data-act="c-save">保存する</button>${src?'<button class="btn danger" data-act="c-del">削除</button>':''}</div>${hist}`);
+}
+function saveChar(){
+  const name=$('#c-name').value.trim();if(!name){toast('名前を入力してください');return;}
+  cd.name=name;cd.note=$('#c-note').value;
+  if(cd.id){S.chars[S.chars.findIndex(c=>c.id===cd.id)]=cd;}else{cd.id=uid();S.chars.push(cd);}
+  save();closeSheet();render();toast('保存しました');
+}
+function delChar(){
+  if(!confirmDel){confirmDel=true;$('[data-act="c-del"]').textContent='もう一度押すと、全予定から外して削除';return;}
+  const id=cd.id;S.chars=S.chars.filter(c=>c.id!==id);
+  S.scenes.forEach(s=>{s.members=(s.members||[]).filter(m=>m!==id);});
+  save();closeSheet();render();toast('削除しました');
+}
+
+/* 場所 */
+function renderPlaces(v){
+  if(!S.places.length){v.innerHTML=emptyBlock('場所が登録されていません','会場、部屋、ブースなど、予定を入れる場所を登録しておくと「どこで何をするか」を整理できます。','<button class="btn pri" data-act="new-place">場所を追加</button>');return;}
+  const sorted=sortedScenes();
+  v.innerHTML='<div class="list">'+S.places.map(p=>{
+    const scs=sorted.filter(s=>s.placeId===p.id),last=scs[scs.length-1];
+    const here=S.chars.filter(c=>{const l=placeAt(c.id,sorted,sorted.length);return l.seen&&l.place===p.id;});
+    return `<article class="pl" style="cursor:pointer;margin:0" role="button" tabindex="0" data-act="open-place" data-id="${p.id}"><h3>${esc(p.name)}</h3>${p.note?`<p class="hint" style="margin:0 0 8px">${esc(p.note)}</p>`:''}<p class="hint" style="margin:0 0 8px">${scs.length}件の予定${last?`、最後は${fmtTs(ts(last))}`:''}</p>${here.length?`<p class="last">直近でここに配置されているメンバー</p>`:''}${here.map(c=>chip(c)).join('')}</article>`;
+  }).join('')+'</div>';
+}
+function openPlace(id){
+  const src=id?pl(id):null;
+  pd=src?{...src}:{id:'',name:'',note:''};
+  const scs=src?sortedScenes().filter(s=>s.placeId===id):[];
+  openSheet(src?'場所':'場所を追加',`
+  <div class="f"><label for="p-name">場所の名前</label><input id="p-name" type="text" value="${esc(pd.name)}" placeholder="例:体育館"></div>
+  <div class="f"><label for="p-note">メモ(広さ・設備・集合の目印など)</label><textarea id="p-note" placeholder="例:50人まで収容。電源は入口側。">${esc(pd.note)}</textarea></div>
+  <div class="actions"><button class="btn pri" data-act="p-save">保存する</button>${src?'<button class="btn danger" data-act="p-del">削除</button>':''}</div>
+  ${src?`<p class="lab" style="margin-top:26px">この場所の予定(${scs.length})</p>${scs.map(s=>`<button class="hist" data-act="open-scene" data-id="${s.id}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}</small></button>`).join('')||'<p class="hint">まだありません</p>'}`:''}`);
+}
+function savePlace(){
+  const name=$('#p-name').value.trim();if(!name){toast('名前を入力してください');return;}
+  pd.name=name;pd.note=$('#p-note').value;
+  if(pd.id){S.places[S.places.findIndex(p=>p.id===pd.id)]=pd;}else{pd.id=uid();S.places.push(pd);}
+  save();closeSheet();render();toast('保存しました');
+}
+function delPlace(){
+  if(!confirmDel){confirmDel=true;$('[data-act="p-del"]').textContent='もう一度押すと削除';return;}
+  const id=pd.id;S.places=S.places.filter(p=>p.id!==id);S.scenes.forEach(s=>{if(s.placeId===id)s.placeId='';});
+  save();closeSheet();render();toast('削除しました');
+}
+
+/* 予定の閲覧 */
+function openScene(id){
+  const sorted=sortedScenes(),sc=sorted.find(s=>s.id===id);if(!sc)return;
+  const p=pl(sc.placeId),ws=sceneWarnings(sc,sorted),i=sorted.indexOf(sc);
+  const chips=(sc.members||[]).map(m=>{const c=ch(m);return c?chip(c,{btn:true}):'';}).join('')||'<p class="hint">担当メンバーは未設定です</p>';
+  const prev=sorted[i-1],next=sorted[i+1];
+  openSheet(fmtTs(ts(sc)),`<div class="detail"><h2>${esc(sc.title||'(無題)')}</h2>${p?`<p class="place-tag">場所:${esc(p.name)}</p>`:''}
+  <div>${chips}</div>
+  <div class="story ${sc.text?'':'none'}">${sc.text?esc(sc.text):'やることはまだ書かれていません。「編集」から書き込めます。'}</div>
+  ${ws.length?`<p class="lab">重複チェック</p><ul class="warns">${ws.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:''}
+  <div class="actions"><button class="btn pri" data-act="edit-scene" data-id="${sc.id}">編集</button><button class="btn" data-act="snap-to" data-id="${sc.id}">この時点の配置</button></div>
+  <div class="actions" style="margin-top:8px">${prev?`<button class="btn sm" data-act="open-scene" data-id="${prev.id}">◀ 前の予定</button>`:''}${next?`<button class="btn sm" data-act="open-scene" data-id="${next.id}">次の予定 ▶</button>`:''}</div></div>`);
+}
+
+/* 予定の編集 */
+function openEditor(id){
+  const src=id?S.scenes.find(s=>s.id===id):null,sorted=sortedScenes();
+  let d;
+  if(src)d=JSON.parse(JSON.stringify(src));
+  else{const last=sorted[sorted.length-1];d={id:'',title:'',date:last?last.date:todayStr(),time:last?last.time:'08:00',placeId:last?last.placeId||'':'',members:last?(last.members||[]).slice():[],text:''};}
+  d.members=d.members||[];
+  ed={d};
+  openSheet(src?'予定を編集':'予定を追加',`
+  <div class="f"><label for="e-title">予定名</label><input id="e-title" type="text" placeholder="例:受付の設営" value="${esc(d.title)}"></div>
+  <div class="row3"><div class="f"><label for="e-date">日にち</label><input id="e-date" type="date" value="${esc(d.date)}"></div><div class="f"><label for="e-time">時刻</label><input id="e-time" type="time" value="${esc(d.time)}"></div></div>
+  <div class="f"><label for="e-place">場所</label><select id="e-place"><option value="">未設定</option>${S.places.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}<option value="__new">＋ 新しい場所を作る</option></select><input id="e-newplace" type="text" hidden placeholder="新しい場所の名前" style="margin-top:8px"></div>
+  <div class="f"><span class="lab">担当するメンバー</span><div id="e-members"></div><div class="quick"><input id="e-newchar" type="text" placeholder="メンバーをその場で追加" aria-label="メンバーをその場で追加"><button class="btn sm" data-act="ed-addchar">追加</button></div></div>
+  <div class="f"><label for="e-text">やること・内容</label><textarea id="e-text" placeholder="作業内容、持ち物、集合の合図、注意点などを自由に書いてください。">${esc(d.text)}</textarea></div>
+  <div id="e-warn"></div>
+  <div class="actions"><button class="btn pri" data-act="ed-save">保存する</button>${src?'<button class="btn danger" data-act="ed-del">削除</button>':''}</div>`);
+  $('#e-place').value=d.placeId&&pl(d.placeId)?d.placeId:'';
+  edMembers();edWarn();
+}
+function edInput(e){
+  if(!ed)return;const d=ed.d,t=e.target;
+  if(t.id==='e-title')d.title=t.value;
+  else if(t.id==='e-date')d.date=t.value||todayStr();
+  else if(t.id==='e-time')d.time=t.value||'00:00';
+  else if(t.id==='e-place'){d.placeId=t.value==='__new'?'':t.value;$('#e-newplace').hidden=t.value!=='__new';}
+  else if(t.id==='e-text')d.text=t.value;
+  else return;
+  edWarn();
+}
+function edMembers(){
+  const d=ed.d;
+  $('#e-members').innerHTML=S.chars.length?S.chars.map(c=>{const on=d.members.includes(c.id);return `<button type="button" class="chip pick ${on?'on':''}" data-act="ed-mem" data-id="${c.id}" style="--c:${esc(c.color)}" aria-pressed="${on}"><i></i><b>${esc(c.name)}</b></button>`;}).join(''):'<p class="hint">メンバーがまだいません。下の欄から名前を入れて追加できます。</p>';
+}
+function edWarn(){
+  const d=ed.d,dd={...d,id:d.id||'__new'};
+  const list=S.scenes.filter(s=>s.id!==d.id).concat([dd]);
+  const ws=sceneWarnings(dd,list);
+  $('#e-warn').innerHTML=ws.length?`<p class="lab">重複チェック</p><ul class="warns">${ws.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:'';
+}
+function edSave(){
+  const d=ed.d;
+  if($('#e-place').value==='__new'){const n=$('#e-newplace').value.trim();if(n){const p={id:uid(),name:n,note:''};S.places.push(p);d.placeId=p.id;}else d.placeId='';}
+  d.date=d.date||todayStr();d.time=d.time||'00:00';d.title=(d.title||'').trim();
+  if(!d.id){d.id=uid();S.scenes.push(d);}else{S.scenes[S.scenes.findIndex(s=>s.id===d.id)]=d;}
+  save();closeSheet();render();toast('保存しました');
+}
+function edDelete(){
+  if(!confirmDel){confirmDel=true;$('[data-act="ed-del"]').textContent='もう一度押すと削除';return;}
+  const id=ed.d.id;S.scenes=S.scenes.filter(s=>s.id!==id);save();closeSheet();render();toast('削除しました');
+}
+
+/* メニュー・入出力 */
+function timelineText(){
+  const sorted=sortedScenes();let out=`# ${S.title}\n`,day=null;
+  sorted.forEach(sc=>{
+    const t=ts(sc),d=Math.floor(t/1440),p=pl(sc.placeId);
+    if(d!==day){out+=`\n■ ${fmtDay(d)}\n`;day=d;}
+    out+=`\n[${fmtClock(t)}] ${sc.title||'(無題)'}${p?` @${p.name}`:''}\n`;
+    const who=(sc.members||[]).map(id=>ch(id)?.name).filter(Boolean).join('、');
+    if(who)out+=`  担当:${who}\n`;
+    if(sc.text)out+=sc.text.split('\n').map(l=>'  '+l).join('\n')+'\n';
+  });
+  return out;
+}
+function openMenu(){
+  const acct=`<p class="lab" style="margin-top:26px">ログイン中</p><p style="overflow-wrap:anywhere">${esc(user?.email||'')}</p>
+  <div class="actions" style="margin-top:10px"><button class="btn" data-act="logout">ログアウト</button></div>`;
+  if(!cur){openSheet('メニュー',acct.replace('margin-top:26px','margin-top:0'));return;}
+  const own=isOwner();
+  openSheet('メニュー',`
+  <div class="f"><label for="m-title">プロジェクト名</label><input id="m-title" type="text" value="${esc(S.title)}"></div>
+  <div class="actions" style="margin-top:0"><button class="btn" data-act="share">共有する相手を管理</button></div>
+  <p class="lab" style="margin-top:26px">データ</p>
+  <div class="actions" style="margin-top:0">
+    <button class="btn" data-act="m-text">予定表をテキストで書き出す</button>
+    <button class="btn" data-act="m-export">バックアップを書き出す</button>
+    <button class="btn" data-act="m-import">バックアップを読み込む</button>
+    ${loadLocal()?'<button class="btn" data-act="m-local">この端末に保存していた予定を取り込む</button>':''}
+    <button class="btn" data-act="sample">サンプルを読み込む</button>
+    <button class="btn danger" data-act="m-clear">予定をすべて消去</button>
+  </div>
+  <div id="m-io"></div>
+  <p class="hint" style="margin-top:14px">読み込み・サンプル・消去は、共有している全員のデータを置き換えます。</p>
+  <div class="actions" style="margin-top:22px">${own?'<button class="btn danger" data-act="proj-del">このプロジェクトを削除</button>':'<button class="btn danger" data-act="proj-leave">このプロジェクトから抜ける</button>'}</div>
+  ${acct}`);
+  $('#m-title').addEventListener('input',e=>{S.title=e.target.value;$('#ttl').textContent=S.title||'無題のプロジェクト';document.title=$('#ttl').textContent;saveTitleSoon();});
+}
+function ioBox(text,readonly,btn){
+  $('#m-io').innerHTML=`<textarea class="io" id="io" ${readonly?'readonly':''} placeholder="ここにバックアップを貼り付け">${esc(text)}</textarea><div class="actions" style="margin-top:10px"><button class="btn pri sm" data-act="${btn.act}">${btn.label}</button></div>`;
+  if(readonly)$('#io').select();
+}
+async function copyIo(){
+  const ta=$('#io');
+  try{await navigator.clipboard.writeText(ta.value);toast('コピーしました');}
+  catch(e){ta.focus();ta.select();let ok=false;try{ok=document.execCommand('copy');}catch(_){}toast(ok?'コピーしました':'選択しました。手動でコピーしてください');}
+}
+function importData(){
+  try{
+    const d=JSON.parse($('#io').value);
+    if(!d||!Array.isArray(d.scenes)||!Array.isArray(d.chars)||!Array.isArray(d.places))throw new Error('形式');
+    S={title:S.title,
+      chars:d.chars.map(c=>({id:c.id,name:c.name,color:c.color||COLORS[0],note:c.note||''})),
+      places:d.places.map(p=>({id:p.id,name:p.name,note:p.note||''})),
+      scenes:d.scenes.map(s=>({id:s.id,title:s.title||'',date:s.date||dateStr(dayNum(todayStr())+(Number(s.day)||1)-1),time:s.time||'00:00',placeId:s.placeId||'',members:s.members||[],text:s.text||''}))};
+    migrate();ui.snapIdx=null;save();closeSheet();render();toast('読み込みました');
+  }catch(e){toast('読み込めませんでした。バックアップの内容を確認してください');}
+}
+function loadSample(){
+  S={
+    title:S.title,
+    places:[{id:'p1',name:'本部テント',note:'集合と連絡の拠点。無線の充電器あり。'},{id:'p2',name:'正門',note:'来場者の受付。'},{id:'p3',name:'体育館',note:'ステージ発表の会場。'},{id:'p4',name:'模擬店エリア',note:'屋台が並ぶ中庭。'}],
+    chars:[
+      {id:'c1',name:'篠崎 ミオ',color:'#2f5fd0',note:'総務リーダー。全体の進行管理。'},
+      {id:'c2',name:'桐生 タカ',color:'#d8472f',note:'設営担当。力仕事が得意。'},
+      {id:'c3',name:'早川 ナナ',color:'#1f9a8a',note:'受付担当。接客に慣れている。'},
+      {id:'c4',name:'黒木先生',color:'#c48a1a',note:'顧問。ステージの責任者。'}],
+    scenes:[
+      {id:'s1',title:'朝礼',date:'2026-11-21',time:'07:30',placeId:'p1',members:['c1','c2','c3','c4'],text:'全員集合。持ち場と1日の流れを確認し、無線機を配る。'},
+      {id:'s2',title:'受付の設営',date:'2026-11-21',time:'08:30',placeId:'p2',members:['c2','c3'],text:'受付机を2卓出し、案内看板を立てる。釣り銭箱はミオから受け取る。'},
+      {id:'s3',title:'ステージのリハーサル',date:'2026-11-21',time:'08:30',placeId:'p3',members:['c1','c4'],text:'音響チェックと進行の通し練習。タイムキーパーはミオ。'},
+      {id:'s4',title:'昼の混雑対応',date:'2026-11-21',time:'12:00',placeId:'p4',members:['c2','c3','c4'],text:'行列の整理と誘導。ゴミ箱の回収は13時までに1回行う。'},
+      {id:'s5',title:'撤収と日報',date:'2026-11-21',time:'17:00',placeId:'p1',members:['c1','c2','c3','c4'],text:'備品を数えて倉庫へ戻す。日報は各自ミオに提出。'},
+      {id:'s6',title:'2日目の朝礼',date:'2026-11-22',time:'07:30',placeId:'p1',members:['c1','c2','c3','c4'],text:'前日の課題を共有し、配置を一部入れ替える。'}]
+  };
+  ui.snapIdx=null;ui.tab='timeline';ui.q='';ui.filterChar='';
+  save();closeSheet();render();toast('サンプルを読み込みました');
+}
+
+/* 描画 */
+function render(){
+  const home=!cur;
+  document.body.classList.toggle('at-home',home);
+  $('#back').hidden=home;$('#shareBtn').hidden=home;$('#sync').hidden=home;
+  const fab=$('#fab');
+  if(home){
+    document.title='イベント予定表';$('#ttl').textContent='プロジェクト';
+    fab.textContent='＋ 新規作成';fab.dataset.act='proj-new';fab.hidden=!projects.length;
+    renderHome($('#view'));return;
+  }
+  fab.hidden=false;
+  const nm=S.title||'無題のプロジェクト';document.title=nm;$('#ttl').textContent=nm;
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===ui.tab?'page':'false'));
+  const map={timeline:['＋ 予定を追加','new-scene'],snap:['＋ 予定を追加','new-scene'],people:['＋ メンバー','new-char'],places:['＋ 場所','new-place']};
+  fab.textContent=map[ui.tab][0];fab.dataset.act=map[ui.tab][1];
+  ({timeline:renderTimeline,snap:renderSnap,people:renderPeople,places:renderPlaces})[ui.tab]($('#view'));
+}
+
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-act]');if(!t)return;
+  const a=t.dataset.act,id=t.dataset.id;
+  switch(a){
+    case 'tab':ui.tab=t.dataset.tab;render();window.scrollTo(0,0);break;
+    case 'new-scene':openEditor();break;
+    case 'new-char':openChar();break;
+    case 'new-place':openPlace();break;
+    case 'open-scene':openScene(id);break;
+    case 'edit-scene':openEditor(id);break;
+    case 'open-char':openChar(id);break;
+    case 'open-place':openPlace(id);break;
+    case 'close-sheet':closeSheet();break;
+    case 'menu':openMenu();break;
+    case 'sample':{if(S.scenes.length&&t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='もう一度押すと、今の予定を消してサンプルに置き換え';break;}loadSample();break;}
+    case 'login-google':loginGoogle();break;
+    case 'auth-toggle':authMode=authMode==='login'?'signup':'login';showLogin();break;
+    case 'auth-reset':resetPass();break;
+    case 'verify-check':verifyCheck();break;
+    case 'verify-resend':sendEmailVerification(auth.currentUser).then(()=>toast('確認メールを再送しました')).catch(e=>toast(authMsg(e)));break;
+    case 'logout':closeSheet();signOut(auth).catch(()=>{});break;
+    case 'reload':location.reload();break;
+    case 'm-local':{const d=loadLocal();if(!d)break;$('#m-io').innerHTML='';ioBox(JSON.stringify(d),false,{act:'m-doimport',label:'この内容で置き換える'});toast('内容を確認して「この内容で置き換える」を押してください');break;}
+    case 'home':goHome();break;
+    case 'proj-new':openNewProject();break;
+    case 'proj-create':createProject();break;
+    case 'proj-open':openProject(id);break;
+    case 'share':openShare();break;
+    case 'sh-add':shareAdd();break;
+    case 'sh-del':{if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='もう一度押すと外す';break;}shareDel(t.dataset.email);break;}
+    case 'proj-leave':{if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='もう一度押すと抜ける';break;}leaveProject();break;}
+    case 'proj-del':{if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='もう一度押すと、全員の分を完全に削除';break;}deleteProject();break;}
+    case 'snap-to':{ui.snapIdx=sortedScenes().findIndex(s=>s.id===id);ui.tab='snap';closeSheet();render();window.scrollTo(0,0);break;}
+    case 'snap-prev':stepSnap(-1);break;
+    case 'snap-next':stepSnap(1);break;
+    case 'c-save':saveChar();break;
+    case 'c-del':delChar();break;
+    case 'c-color':cd.color=t.dataset.col;document.querySelectorAll('#c-colors .sw').forEach(b=>b.setAttribute('aria-pressed',b.dataset.col===cd.color));break;
+    case 'p-save':savePlace();break;
+    case 'p-del':delPlace();break;
+    case 'ed-mem':{const d=ed.d,i=d.members.indexOf(id);if(i>=0)d.members.splice(i,1);else d.members.push(id);edMembers();edWarn();break;}
+    case 'ed-addchar':{
+      const inp=$('#e-newchar'),n=inp.value.trim();if(!n){toast('名前を入力してください');break;}
+      const c={id:uid(),name:n,color:COLORS[S.chars.length%COLORS.length],note:''};
+      S.chars.push(c);save();ed.d.members.push(c.id);inp.value='';edMembers();edWarn();break;}
+    case 'ed-save':edSave();break;
+    case 'ed-del':edDelete();break;
+    case 'm-text':ioBox(timelineText(),true,{act:'m-copy',label:'コピーする'});break;
+    case 'm-export':ioBox(JSON.stringify(S,null,1),true,{act:'m-copy',label:'コピーする'});break;
+    case 'm-import':ioBox('',false,{act:'m-doimport',label:'この内容で置き換える'});break;
+    case 'm-copy':copyIo();break;
+    case 'm-doimport':importData();break;
+    case 'm-clear':{if(!confirmDel){confirmDel=true;t.textContent='もう一度押すと全データを消去';break;}S={title:S.title,chars:[],places:[],scenes:[]};ui.snapIdx=null;save();closeSheet();render();toast('消去しました');break;}
+  }
+});
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.id==='q'){ui.q=t.value;paintTl();}
+  else if(t.id==='snapRange'){ui.snapIdx=+t.value;paintSnap();}
+});
+document.addEventListener('submit',e=>{if(e.target.id==='mailForm'){e.preventDefault();submitMail();}});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.isComposing)return;
+  if(e.target.id==='np-name'){e.preventDefault();createProject();}
+  else if(e.target.id==='sh-email'){e.preventDefault();shareAdd();}
+});
+document.addEventListener('change',e=>{if(e.target.id==='fc'){ui.filterChar=e.target.value;paintTl();}});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&!$('#sheet').hidden){closeSheet();return;}
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role="button"][data-act]')){e.preventDefault();e.target.click();}
+});
+$('#sheetBody').addEventListener('input',edInput);
+$('#sheetBody').addEventListener('change',edInput);
+boot();
+</script>
+</body>
+</html>
