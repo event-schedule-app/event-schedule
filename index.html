@@ -11,20 +11,20 @@
 :root{
   color-scheme:light;
   --paper:#f2f5f4; --grid:#dbe8ee; --panel:#ffffff; --ink:#1b2247; --ink2:#525a7d; --rule:#8fbbd8;
-  --warn:#c9302c; --focus:#2d78e0;
+  --warn:#c9302c; --focus:#2d78e0; --live:#1f8a5b; --soon:#f2c14e;
   box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     color-scheme:dark;
     --paper:#11152b; --grid:#1c2645; --panel:#1a2040; --ink:#e9ecf8; --ink2:#a5add0; --rule:#3c5f8c;
-    --warn:#ff6259; --focus:#6aa6ff;
+    --warn:#ff6259; --focus:#6aa6ff; --live:#3fbf85; --soon:#f2c14e;
   }
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
   --paper:#11152b; --grid:#1c2645; --panel:#1a2040; --ink:#e9ecf8; --ink2:#a5add0; --rule:#3c5f8c;
-  --warn:#ff6259; --focus:#6aa6ff;
+  --warn:#ff6259; --focus:#6aa6ff; --live:#3fbf85; --soon:#f2c14e;
 }
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
 [hidden]{display:none!important}
@@ -65,6 +65,7 @@ textarea{min-height:180px;resize:vertical;line-height:25.5px;padding-top:6px;
 .row3{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .hint{font-size:12.5px;color:var(--ink2);margin-top:6px}
 .quick{display:flex;gap:8px;margin-top:6px}
+.quick .btn{white-space:nowrap;flex:none}
 .swatches{display:flex;flex-wrap:wrap;gap:10px}
 .sw{width:38px;height:38px;border:2.5px solid var(--ink);background:var(--c);cursor:pointer;padding:0}
 .sw[aria-pressed="true"]{outline:3px solid var(--focus);outline-offset:2px}
@@ -88,6 +89,21 @@ button.chip{cursor:pointer}
 .ph{display:flex;align-items:stretch;border-bottom:2.5px solid var(--ink)}
 .ph time{background:var(--ink);color:var(--paper);font:400 15px/1 'Dela Gothic One',sans-serif;padding:0 11px;display:flex;align-items:center;white-space:nowrap}
 .ph h3{flex:1;min-width:0;padding:7px 10px;font-size:16px;line-height:1.4}
+.st{font-size:12px;font-weight:700;padding:0 9px;display:flex;align-items:center;white-space:nowrap;border-left:2.5px solid var(--ink)}
+.st-done{background:var(--paper);color:var(--ink2)}
+.st-live{background:var(--live);color:#fff}
+.st-soon{background:var(--soon);color:#1b2247}
+.panel.is-done{opacity:.6;box-shadow:2px 2px 0 var(--ink)}
+.panel.is-done .ph time{background:var(--ink2)}
+.panel.is-live{outline:3px solid var(--live);outline-offset:2px}
+.nowline{display:flex;align-items:center;gap:8px;margin:0 0 14px -33px;font-size:12.5px;font-weight:700;color:var(--live)}
+.nowline::before{content:'';width:15px;height:15px;border-radius:50%;background:var(--live);flex:none}
+.nowline::after{content:'';flex:1;height:2.5px;background:var(--live)}
+.hide-done{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;margin:4px 0 0;min-height:36px;cursor:pointer}
+.hide-done input{width:20px;height:20px;accent-color:var(--ink);margin:0}
+.rel{font-size:13px;font-weight:700;color:var(--focus);margin:0 0 6px}
+.mode{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.mode button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .warnb{background:var(--warn);color:#fff;font-size:12px;font-weight:700;padding:0 8px;display:flex;align-items:center}
 .pb{padding:10px 12px 0}
 .place-tag{display:inline-block;font-size:12.5px;font-weight:700;color:var(--ink2);margin-bottom:8px}
@@ -236,6 +252,7 @@ function commitOps(ops){
 function save(){
   if(!db||!user||!cur)return;
   const pid=cur.id,ops=[],now=Date.now();
+  S.scenes.forEach(s=>{if(relAfter(s)){const t=ts(s),dd=dateStr(Math.floor(t/1440)),tt=fmtClock(t);if(s.date!==dd)s.date=dd;if(s.time!==tt)s.time=tt;}});
   ['chars','places'].forEach(col=>S[col].forEach((it,i)=>{if(typeof it.o!=='number')it.o=now+i;}));
   COLS.forEach(col=>{
     const seen=new Set();
@@ -300,7 +317,7 @@ function openProject(pid,data){
     projUnsubs.push(onSnapshot(collection(db,'projects',pid,col),snap=>{
       if(!cur||cur.id!==pid)return;
       const arr=[],m=new Map();
-      snap.forEach(d=>{if(!okId(d.id))return;const v=d.data();v.id=d.id;if(Array.isArray(v.members))v.members=v.members.filter(okId);else if(col==='scenes')v.members=[];if(col==='scenes'&&v.placeId&&!okId(v.placeId))v.placeId='';arr.push(v);m.set(d.id,stable(v));});
+      snap.forEach(d=>{if(!okId(d.id))return;const v=d.data();v.id=d.id;if(Array.isArray(v.members))v.members=v.members.filter(okId);else if(col==='scenes')v.members=[];if(col==='scenes'&&v.placeId&&!okId(v.placeId))v.placeId='';if(col==='scenes'){['after','until'].forEach(k=>{if(k in v&&!okId(v[k]))delete v[k];});}arr.push(v);m.set(d.id,stable(v));});
       if(col!=='scenes')arr.sort((a,b)=>(a.o??0)-(b.o??0));
       S[col]=arr;base[col]=m;loaded[col]=true;
       setSync(snap.metadata.hasPendingWrites?'保存中…':'同期済み');
@@ -450,7 +467,7 @@ function boot(){
     enterApp();
   });
 }
-const ui={tab:'timeline',filterChar:'',q:'',snapIdx:null};
+const ui={hideDone:(()=>{try{return localStorage.getItem('hide-done')==='1';}catch(e){return false;}})(),tab:'timeline',filterChar:'',q:'',snapIdx:null};
 const ch=id=>S.chars.find(c=>c.id===id);
 const pl=id=>S.places.find(p=>p.id===id);
 
@@ -460,25 +477,65 @@ function todayStr(){const n=new Date();return `${n.getFullYear()}-${pad(n.getMon
 function dayNum(s){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return Math.round((m?Date.UTC(+m[1],+m[2]-1,+m[3]):Date.UTC(2026,0,1))/864e5);}
 function dateStr(n){const d=new Date(n*864e5);return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;}
 function fmtDay(n){const d=new Date(n*864e5);return `${d.getUTCFullYear()}年${d.getUTCMonth()+1}月${d.getUTCDate()}日(${WD[d.getUTCDay()]})`;}
-function ts(sc){const p=String(sc.time||'00:00').split(':');return dayNum(sc.date)*1440+(Number(p[0])||0)*60+(Number(p[1])||0);}
+/* 予定の時刻。「○○の後」「○○まで」は、ほかの予定から自動で計算する */
+function baseTs(sc){const p=String(sc.time||'00:00').split(':');return dayNum(sc.date)*1440+(Number(p[0])||0)*60+(Number(p[1])||0);}
+const sceneById=id=>id?S.scenes.find(s=>s.id===id):null;
+function tsR(sc,seen){
+  if(sc.after&&!seen.has(sc.id)){const x=sceneById(sc.after);if(x&&x.id!==sc.id){seen.add(sc.id);const e=endTsR(x,seen);return e!=null?e:tsR(x,seen);}}
+  return baseTs(sc);
+}
+function endTsR(sc,seen){
+  if(sc.until){const y=sceneById(sc.until);if(y&&y.id!==sc.id&&!seen.has(y.id)){const s=tsR(sc,seen),e=tsR(y,seen);return Math.max(e,s);}}
+  if(!sc.end)return null;
+  const s=tsR(sc,seen),day=Math.floor(s/1440)*1440;let e=day+mins(sc.end);if(e<=s)e+=1440;return e;
+}
+function ts(sc){return tsR(sc,new Set());}
+const relAfter=sc=>!!(sc.after&&sceneById(sc.after));
+const relUntil=sc=>!!(sc.until&&sceneById(sc.until));
+/* 「○○の後」の連なりの深さ(並べ替えで、前の予定を先に出すため) */
+function depth(sc){let n=0,cur=sc;const seen=new Set();while(cur&&cur.after&&!seen.has(cur.id)&&n<50){seen.add(cur.id);cur=sceneById(cur.after);n++;}return n;}
+/* sc の「後」の連なりをたどると target に行き着くか(循環を防ぐ) */
+function chainHits(sc,target){let cur=sc;const seen=new Set();while(cur&&!seen.has(cur.id)){if(cur.id===target)return true;seen.add(cur.id);cur=sceneById(cur.after);}return false;}
+const stitle=sc=>sc?(sc.title||'(無題)'):'(削除された予定)';
+function relLine(sc){
+  const a=relAfter(sc)?`「${esc(stitle(sceneById(sc.after)))}」の後`:'';
+  const u=relUntil(sc)?`「${esc(stitle(sceneById(sc.until)))}」まで`:'';
+  return a||u?`<p class="rel">${a}${a&&u?' 〜 ':''}${u}</p>`:'';
+}
 function fmtTs(t){const d=Math.floor(t/1440),r=t%1440;return `${fmtDay(d)} ${pad(Math.floor(r/60))}:${pad(Math.floor(r%60))}`;}
 function migrate(){if(S.title==='名称未設定の記録帳')S.title='名称未設定の予定表';S.scenes.forEach(s=>{if(!s.date){s.date=dateStr(dayNum(todayStr())+(Number(s.day)||1)-1);delete s.day;}});}
 function fmtClock(t){const r=t%1440;return `${pad(Math.floor(r/60))}:${pad(Math.floor(r%60))}`;}
 function fmtDur(m){m=Math.max(0,Math.round(m));if(m<60)return `${m}分`;const d=Math.floor(m/1440),h=Math.floor((m%1440)/60),mm=m%60;let s='';if(d)s+=`${d}日`;if(h)s+=`${h}時間`;if(mm&&!d)s+=`${mm}分`;return s||'0分';}
-function sortedScenes(list){return (list||S.scenes).slice().sort((a,b)=>ts(a)-ts(b));}
+/* 開始と終了(終了時刻は任意。開始より前なら翌日扱い) */
+function mins(s){const p=String(s||'').split(':');return (Number(p[0])||0)*60+(Number(p[1])||0);}
+function endTs(sc){return endTsR(sc,new Set());}
+function nowTs(){const n=new Date();return dayNum(todayStr())*1440+n.getHours()*60+n.getMinutes();}
+function timeLabel(sc){const e=endTs(sc);return fmtClock(ts(sc))+(relAfter(sc)?'ごろ':'')+(e!=null?'–'+fmtClock(e)+(relUntil(sc)?'ごろ':''):'');}
+/* 現実の時刻での状態: done=終了 / live=進行中 / soon=まもなく(1時間以内) / '' */
+function status(sc,now){
+  const s=ts(sc),e=endTs(sc);now=now??nowTs();
+  if(e!=null){if(now>=e)return {k:'done',l:'終了'};if(now>=s)return {k:'live',l:'進行中'};}
+  else if(now>s)return {k:'done',l:'終了'};
+  else if(now===s)return {k:'live',l:'いま'};
+  if(s-now<=60)return {k:'soon',l:`あと${fmtDur(s-now)}`};
+  return {k:'',l:''};
+}
+const stBadge=st=>st.k?`<span class="st st-${st.k}">${st.l}</span>`:'';
+function sortedScenes(list){return (list||S.scenes).map(s=>[s,ts(s),depth(s)]).sort((a,b)=>a[1]-b[1]||a[2]-b[2]).map(x=>x[0]);}
 
 /* メンバーの居場所:その時点までに最後に登場した予定 */
 function placeAt(cid,sorted,n){let seen=false,place=null,sc=null;for(let i=0;i<n;i++){if((sorted[i].members||[]).includes(cid)){seen=true;place=sorted[i].placeId||null;sc=sorted[i];}}return {seen,place,sc};}
 
 /* 矛盾チェック:同時刻に同じメンバーが別々の場所にいる */
 function sceneWarnings(sc,list){
-  const out=[],t=ts(sc);
+  const out=[],t=ts(sc),te=endTs(sc)??t+1;
   if(!sc.placeId)return out;
   list.forEach(o=>{
-    if(o===sc||ts(o)!==t||!o.placeId||o.placeId===sc.placeId)return;
+    const ot=ts(o),oe=endTs(o)??ot+1;
+    if(o===sc||!(t<oe&&ot<te)||!o.placeId||o.placeId===sc.placeId||o.after===sc.id||sc.after===o.id||o.until===sc.id||sc.until===o.id)return;
     (sc.members||[]).filter(m=>(o.members||[]).includes(m)).forEach(m=>{
       const c=ch(m);if(!c)return;
-      out.push(`${c.name}が同じ時刻(${fmtTs(t)})に「${pl(sc.placeId)?.name||'?'}」と「${pl(o.placeId)?.name||'?'}」の両方に割り当てられています(ダブルブッキング)`);
+      out.push(`${c.name}が同じ時間帯(${fmtTs(Math.max(t,ot))}ごろ)に「${pl(sc.placeId)?.name||'?'}」と「${pl(o.placeId)?.name||'?'}」の両方に割り当てられています(ダブルブッキング)`);
     });
   });
   return out;
@@ -502,27 +559,31 @@ function renderTimeline(v){
     v.innerHTML=emptyBlock('まだ予定がありません','メンバーと場所を登録して、「いつ・どこで・誰が・何をするか」を予定として入れていきます。','<button class="btn pri" data-act="new-scene">最初の予定を追加</button><button class="btn" data-act="sample">サンプルを見る</button>');
     return;
   }
-  v.innerHTML=`<div class="filters"><input type="search" id="q" placeholder="キーワードで探す" aria-label="キーワードで探す" value="${esc(ui.q)}"><select id="fc" aria-label="メンバーで絞り込む"><option value="">全員の予定</option>${S.chars.map(c=>`<option value="${esc(c.id)}" ${ui.filterChar===c.id?'selected':''}>${esc(c.name)}が関わる予定</option>`).join('')}</select></div><div id="tlList"></div>`;
+  v.innerHTML=`<label class="hide-done"><input type="checkbox" id="hideDone" ${ui.hideDone?'checked':''}>終わった予定を隠す</label><div class="filters"><input type="search" id="q" placeholder="キーワードで探す" aria-label="キーワードで探す" value="${esc(ui.q)}"><select id="fc" aria-label="メンバーで絞り込む"><option value="">全員の予定</option>${S.chars.map(c=>`<option value="${esc(c.id)}" ${ui.filterChar===c.id?'selected':''}>${esc(c.name)}が関わる予定</option>`).join('')}</select></div><div id="tlList"></div>`;
   paintTl();
 }
 function paintTl(){
   const sorted=sortedScenes(),q=ui.q.trim().toLowerCase(),fc=ui.filterChar,items=[];
+  const now=nowTs();
   sorted.forEach(sc=>{
+    if(ui.hideDone&&status(sc,now).k==='done')return;
     if(fc&&!(sc.members||[]).includes(fc))return;
     if(q){const hay=[sc.title,sc.text,pl(sc.placeId)?.name,...(sc.members||[]).map(id=>ch(id)?.name)].join(' ').toLowerCase();if(!hay.includes(q))return;}
     items.push(sc);
   });
   const box=$('#tlList');
-  if(!items.length){box.innerHTML='<p class="hint" style="margin-top:20px">条件に合う予定がありません。</p>';return;}
-  let html='',curDay=null,prevT=null;
+  if(!items.length){box.innerHTML=`<p class="hint" style="margin-top:20px">${ui.hideDone&&sorted.length?'これからの予定はありません。':'条件に合う予定がありません。'}</p>`;return;}
+  let html='',curDay=null,prevT=null,marked=false;const nowDay=Math.floor(now/1440);
   items.forEach(sc=>{
     const T=ts(sc),d=Math.floor(T/1440);
     if(d!==curDay){if(curDay!==null)html+='</div>';html+=`<h2 class="day">${fmtDay(d)}</h2><div class="rail">`;curDay=d;}
     if(prevT!==null&&T>prevT)html+=`<div class="gap">＋${fmtDur(T-prevT)}</div>`;
     prevT=T;
+    if(!marked&&T>now&&d===nowDay){html+=`<div class="nowline">いま ${fmtClock(now)}</div>`;marked=true;}
+    if(T>now)marked=true;
     const chips=(sc.members||[]).map(id=>{const c=ch(id);return c?chip(c):'';}).join('');
-    const wn=sceneWarnings(sc,sorted).length,p=pl(sc.placeId);
-    html+=`<article class="panel" role="button" tabindex="0" data-act="open-scene" data-id="${esc(sc.id)}"><div class="ph"><time>${fmtClock(T)}</time><h3>${esc(sc.title||'(無題)')}</h3>${wn?`<span class="warnb">重複${wn}</span>`:''}</div><div class="pb">${p?`<span class="place-tag">場所:${esc(p.name)}</span><br>`:''}${chips}${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:''}</div></article>`;
+    const wn=sceneWarnings(sc,sorted).length,p=pl(sc.placeId),st=status(sc,now);
+    html+=`<article class="panel${st.k==='done'?' is-done':st.k==='live'?' is-live':''}" role="button" tabindex="0" data-act="open-scene" data-id="${esc(sc.id)}"><div class="ph"><time>${timeLabel(sc)}</time><h3>${esc(sc.title||'(無題)')}</h3>${wn?`<span class="warnb">重複${wn}</span>`:''}${stBadge(st)}</div><div class="pb">${relLine(sc)}${p?`<span class="place-tag">場所:${esc(p.name)}</span><br>`:''}${chips}${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:''}</div></article>`;
   });
   if(curDay!==null)html+='</div>';
   box.innerHTML=html;
@@ -552,7 +613,7 @@ function paintSnap(){
     return `<section class="pl"><h3>${p?esc(p.name):'場所が未設定'}</h3>${last?`<p class="last">直近の予定:${fmtTs(ts(last))}「${esc(last.title||'無題')}」</p>`:''}${list||'<p class="hint" style="margin:0 0 8px">この時点でここに配置されているメンバーはいません</p>'}</section>`;
   }).join('');
   const p=pl(sc.placeId);
-  $('#snapBody').innerHTML=`<div class="now"><div class="ph"><time>${fmtClock(T)}</time><h3>${esc(sc.title||'(無題)')}</h3></div><div class="pb" style="padding-bottom:4px"><span class="place-tag">${fmtDay(Math.floor(T/1440))}${p?`、場所:${esc(p.name)}`:''}</span>${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:'<p class="hint">この予定の文章はまだありません</p>'}<div class="actions" style="margin:10px 0 6px"><button class="btn sm" data-act="open-scene" data-id="${esc(sc.id)}">予定を開く</button></div></div></div>
+  $('#snapBody').innerHTML=`<div class="now"><div class="ph"><time>${timeLabel(sc)}</time><h3>${esc(sc.title||'(無題)')}</h3>${stBadge(status(sc))}</div><div class="pb" style="padding-bottom:4px"><span class="place-tag">${fmtDay(Math.floor(T/1440))}${p?`、場所:${esc(p.name)}`:''}</span>${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:'<p class="hint">この予定の文章はまだありません</p>'}<div class="actions" style="margin:10px 0 6px"><button class="btn sm" data-act="open-scene" data-id="${esc(sc.id)}">予定を開く</button></div></div></div>
   <div class="counters"><div class="cn"><b>${seen.length}</b><span>配置済みのメンバー</span></div><div class="cn"><b>${unseen.length}</b><span>未配置のメンバー</span></div></div>
   <p class="hint" style="margin:0 0 10px">各メンバーは、この予定までに最後に割り当てられた場所に表示しています。</p>
   ${blocks||'<p class="hint">まだメンバーが配置されていません。</p>'}
@@ -579,7 +640,7 @@ function openChar(id){
     hist=`<p class="lab" style="margin-top:26px">割り当てられている予定(${rows.length}件)</p>`+(rows.length?rows.map(s=>`<button class="hist" data-act="open-scene" data-id="${esc(s.id)}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}${pl(s.placeId)?`、${esc(pl(s.placeId).name)}`:''}</small></button>`).join(''):'<p class="hint">まだ予定がありません</p>');
   }
   openSheet(src?'メンバー':'メンバーを追加',`
-  <div class="f"><label for="c-name">名前</label><input id="c-name" type="text" value="${esc(cd.name)}" placeholder="例:篠崎 ミオ"></div>
+  <div class="f"><label for="c-name">名前</label><input id="c-name" type="text" value="${esc(cd.name)}" placeholder="例:山田 太郎"></div>
   <div class="f"><span class="lab">識別色</span><div class="swatches" id="c-colors">${COLORS.map(col=>`<button type="button" class="sw" data-act="c-color" data-col="${col}" style="--c:${safeColor(col)}" aria-label="色 ${col}" aria-pressed="${cd.color===col}"></button>`).join('')}</div></div>
   <div class="f"><label for="c-note">メモ(担当できること・連絡先・都合のつく時間帯など)</label><textarea id="c-note" placeholder="例:設営と力仕事が得意。午後は不在。">${esc(cd.note)}</textarea></div>
   <div class="actions"><button class="btn pri" data-act="c-save">保存する</button>${src?'<button class="btn danger" data-act="c-del">削除</button>':''}</div>${hist}`);
@@ -635,7 +696,8 @@ function openScene(id){
   const p=pl(sc.placeId),ws=sceneWarnings(sc,sorted),i=sorted.indexOf(sc);
   const chips=(sc.members||[]).map(m=>{const c=ch(m);return c?chip(c,{btn:true}):'';}).join('')||'<p class="hint">担当メンバーは未設定です</p>';
   const prev=sorted[i-1],next=sorted[i+1];
-  openSheet(fmtTs(ts(sc)),`<div class="detail"><h2>${esc(sc.title||'(無題)')}</h2>${p?`<p class="place-tag">場所:${esc(p.name)}</p>`:''}
+  const st=status(sc);
+  openSheet(fmtDay(Math.floor(ts(sc)/1440))+' '+timeLabel(sc),`<div class="detail"><h2>${esc(sc.title||'(無題)')}</h2>${relLine(sc)}${st.k?`<p class="place-tag" style="color:${st.k==='live'?'var(--live)':'var(--ink2)'}">${st.k==='soon'?'開始まで'+st.l.replace('あと',''):st.l}</p><br>`:''}${p?`<p class="place-tag">場所:${esc(p.name)}</p>`:''}
   <div>${chips}</div>
   <div class="story ${sc.text?'':'none'}">${sc.text?esc(sc.text):'やることはまだ書かれていません。「編集」から書き込めます。'}</div>
   ${ws.length?`<p class="lab">重複チェック</p><ul class="warns">${ws.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:''}
@@ -650,34 +712,73 @@ function openEditor(id){
   if(src)d=JSON.parse(JSON.stringify(src));
   else{const last=sorted[sorted.length-1];d={id:'',title:'',date:last?last.date:todayStr(),time:last?last.time:'08:00',placeId:last?last.placeId||'':'',members:last?(last.members||[]).slice():[],text:''};}
   d.members=d.members||[];
-  ed={d};
+  ed={d,smode:d.after&&sceneById(d.after)?'after':'time',emode:d.until&&sceneById(d.until)?'until':(d.end?'time':'none')};
   openSheet(src?'予定を編集':'予定を追加',`
   <div class="f"><label for="e-title">予定名</label><input id="e-title" type="text" placeholder="例:受付の設営" value="${esc(d.title)}"></div>
-  <div class="row3"><div class="f"><label for="e-date">日にち</label><input id="e-date" type="date" value="${esc(d.date)}"></div><div class="f"><label for="e-time">時刻</label><input id="e-time" type="time" value="${esc(d.time)}"></div></div>
+  <div class="f"><span class="lab">始まり</span><div class="mode" role="group" aria-label="始まりの決め方"><button type="button" class="btn sm" data-act="ed-smode" data-m="time">時刻で決める</button><button type="button" class="btn sm" data-act="ed-smode" data-m="after">ほかの予定の後</button></div>
+    <div id="e-sfixed" class="row3"><div><label class="lab" for="e-date">日にち</label><input id="e-date" type="date" value="${esc(d.date)}"></div><div><label class="lab" for="e-time">開始時刻</label><input id="e-time" type="time" value="${esc(d.time)}"></div></div>
+    <div id="e-safter"><select id="e-after" aria-label="どの予定の後か"></select><p class="hint">選んだ予定が終わったら始まります。時刻は自動で計算され、前の予定の時刻を変えるとこちらもずれます。</p></div></div>
+  <div class="f"><span class="lab">終わり(なくても OK)</span><div class="mode" role="group" aria-label="終わりの決め方"><button type="button" class="btn sm" data-act="ed-emode" data-m="none">決めない</button><button type="button" class="btn sm" data-act="ed-emode" data-m="time">時刻で決める</button><button type="button" class="btn sm" data-act="ed-emode" data-m="until">ほかの予定まで</button></div>
+    <div id="e-efixed"><input id="e-end" type="time" value="${esc(d.end||'')}" aria-label="終了時刻"></div>
+    <div id="e-euntil"><select id="e-until" aria-label="どの予定までか"></select><p class="hint">選んだ予定が始まるまで続きます。</p></div>
+    <p class="hint" id="e-ehint">終わりがあると「進行中」→「終了」と表示が変わります。ないときは、始まりの時刻を過ぎた時点で「終了」になります。</p></div>
+  <p class="hint" id="e-calc" style="margin:-8px 0 18px;font-weight:700"></p>
   <div class="f"><label for="e-place">場所</label><select id="e-place"><option value="">未設定</option>${S.places.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}<option value="__new">＋ 新しい場所を作る</option></select><input id="e-newplace" type="text" hidden placeholder="新しい場所の名前" style="margin-top:8px"></div>
   <div class="f"><span class="lab">担当するメンバー</span><div id="e-members"></div><div class="quick"><input id="e-newchar" type="text" placeholder="メンバーをその場で追加" aria-label="メンバーをその場で追加"><button class="btn sm" data-act="ed-addchar">追加</button></div></div>
   <div class="f"><label for="e-text">やること・内容</label><textarea id="e-text" placeholder="作業内容、持ち物、集合の合図、注意点などを自由に書いてください。">${esc(d.text)}</textarea></div>
   <div id="e-warn"></div>
   <div class="actions"><button class="btn pri" data-act="ed-save">保存する</button>${src?'<button class="btn danger" data-act="ed-del">削除</button>':''}</div>`);
   $('#e-place').value=d.placeId&&pl(d.placeId)?d.placeId:'';
-  edMembers();edWarn();
+  edTiming();edMembers();edWarn();
+}
+/* 始まり・終わりの入力欄を、選んだ決め方に合わせて切り替える */
+function sceneOptions(pickId,excludeChainOf){
+  const self=ed.d.id;
+  const list=sortedScenes().filter(o=>o.id!==self&&!(excludeChainOf&&self&&chainHits(o,self)));
+  return `<option value="">予定を選ぶ</option>`+list.map(o=>`<option value="${esc(o.id)}" ${o.id===pickId?'selected':''}>${esc(fmtDay(Math.floor(ts(o)/1440)).replace(/^\d+年/,''))} ${esc(timeLabel(o))} ${esc(stitle(o))}</option>`).join('');
+}
+function edTiming(){
+  const d=ed.d;
+  document.querySelectorAll('[data-act="ed-smode"]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===ed.smode));
+  document.querySelectorAll('[data-act="ed-emode"]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===ed.emode));
+  $('#e-sfixed').hidden=ed.smode!=='time';$('#e-safter').hidden=ed.smode!=='after';
+  $('#e-efixed').hidden=ed.emode!=='time';$('#e-euntil').hidden=ed.emode!=='until';
+  if(ed.smode==='after')$('#e-after').innerHTML=sceneOptions(d.after,true);
+  if(ed.emode==='until')$('#e-until').innerHTML=sceneOptions(d.until,false);
+  edCalc();
+}
+function draftScene(){
+  const d=ed.d,x={...d,id:d.id||'__new'};
+  if(ed.smode!=='after'||!x.after)delete x.after;
+  if(ed.emode!=='until'||!x.until)delete x.until;
+  if(ed.emode!=='time'||!/^\d{2}:\d{2}$/.test(x.end||''))delete x.end;
+  return x;
+}
+function edCalc(){
+  const x=draftScene(),el=$('#e-calc');if(!el)return;
+  if(!x.after&&!x.until){el.textContent='';return;}
+  const s=ts(x),e=endTs(x);
+  el.textContent=`いまの計算では ${fmtDay(Math.floor(s/1440))} ${fmtClock(s)}${e!=null?'〜'+fmtClock(e):''} になります`;
 }
 function edInput(e){
   if(!ed)return;const d=ed.d,t=e.target;
   if(t.id==='e-title')d.title=t.value;
   else if(t.id==='e-date')d.date=t.value||todayStr();
   else if(t.id==='e-time')d.time=t.value||'00:00';
+  else if(t.id==='e-end')d.end=t.value||'';
+  else if(t.id==='e-after')d.after=t.value||'';
+  else if(t.id==='e-until')d.until=t.value||'';
   else if(t.id==='e-place'){d.placeId=t.value==='__new'?'':t.value;$('#e-newplace').hidden=t.value!=='__new';}
   else if(t.id==='e-text')d.text=t.value;
   else return;
-  edWarn();
+  edCalc();edWarn();
 }
 function edMembers(){
   const d=ed.d;
   $('#e-members').innerHTML=S.chars.length?S.chars.map(c=>{const on=d.members.includes(c.id);return `<button type="button" class="chip pick ${on?'on':''}" data-act="ed-mem" data-id="${esc(c.id)}" style="--c:${safeColor(c.color)}" aria-pressed="${on}"><i></i><b>${esc(c.name)}</b></button>`;}).join(''):'<p class="hint">メンバーがまだいません。下の欄から名前を入れて追加できます。</p>';
 }
 function edWarn(){
-  const d=ed.d,dd={...d,id:d.id||'__new'};
+  const d=ed.d,dd=draftScene();
   const list=S.scenes.filter(s=>s.id!==d.id).concat([dd]);
   const ws=sceneWarnings(dd,list);
   $('#e-warn').innerHTML=ws.length?`<p class="lab">重複チェック</p><ul class="warns">${ws.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:'';
@@ -685,13 +786,24 @@ function edWarn(){
 function edSave(){
   const d=ed.d;
   if($('#e-place').value==='__new'){const n=$('#e-newplace').value.trim();if(n){const p={id:uid(),name:n,note:''};S.places.push(p);d.placeId=p.id;}else d.placeId='';}
+  if(ed.smode==='after'&&!d.after){toast('どの予定の後か選んでください');return;}
+  if(ed.emode==='until'&&!d.until){toast('どの予定までか選んでください');return;}
+  if(ed.emode==='time'&&!/^\d{2}:\d{2}$/.test(d.end||'')){toast('終了時刻を入れてください');return;}
+  const x=draftScene();
+  ['after','until','end'].forEach(k=>{if(x[k])d[k]=x[k];else delete d[k];});
   d.date=d.date||todayStr();d.time=d.time||'00:00';d.title=(d.title||'').trim();
+  if(d.after){const s=ts({...d,id:d.id||'__new'});d.date=dateStr(Math.floor(s/1440));d.time=fmtClock(s);}
   if(!d.id){d.id=uid();S.scenes.push(d);}else{S.scenes[S.scenes.findIndex(s=>s.id===d.id)]=d;}
   save();closeSheet();render();toast('保存しました');
 }
 function edDelete(){
   if(!confirmDel){confirmDel=true;$('[data-act="ed-del"]').textContent='もう一度押すと削除';return;}
-  const id=ed.d.id;S.scenes=S.scenes.filter(s=>s.id!==id);save();closeSheet();render();toast('削除しました');
+  const id=ed.d.id;
+  S.scenes.forEach(s=>{
+    if(s.after===id){const t=ts(s);s.date=dateStr(Math.floor(t/1440));s.time=fmtClock(t);delete s.after;}
+    if(s.until===id){const e=endTs(s);if(e!=null)s.end=fmtClock(e);delete s.until;}
+  });
+  S.scenes=S.scenes.filter(s=>s.id!==id);save();closeSheet();render();toast('削除しました');
 }
 
 /* メニュー・入出力 */
@@ -700,7 +812,8 @@ function timelineText(){
   sorted.forEach(sc=>{
     const t=ts(sc),d=Math.floor(t/1440),p=pl(sc.placeId);
     if(d!==day){out+=`\n■ ${fmtDay(d)}\n`;day=d;}
-    out+=`\n[${fmtClock(t)}] ${sc.title||'(無題)'}${p?` @${p.name}`:''}\n`;
+    out+=`\n[${timeLabel(sc)}] ${sc.title||'(無題)'}${p?` @${p.name}`:''}\n`;
+    if(relAfter(sc)||relUntil(sc))out+=`  時間:${relAfter(sc)?`「${stitle(sceneById(sc.after))}」の後`:''}${relAfter(sc)&&relUntil(sc)?' 〜 ':''}${relUntil(sc)?`「${stitle(sceneById(sc.until))}」まで`:''}\n`;
     const who=(sc.members||[]).map(id=>ch(id)?.name).filter(Boolean).join('、');
     if(who)out+=`  担当:${who}\n`;
     if(sc.text)out+=sc.text.split('\n').map(l=>'  '+l).join('\n')+'\n';
@@ -748,7 +861,7 @@ function importData(){
     S={title:S.title,
       chars:d.chars.map(c=>({id:c.id,name:String(c.name||'').slice(0,100),color:safeColor(c.color),note:c.note||''})),
       places:d.places.map(p=>({id:p.id,name:p.name,note:p.note||''})),
-      scenes:d.scenes.map(s=>({id:s.id,title:s.title||'',date:s.date||dateStr(dayNum(todayStr())+(Number(s.day)||1)-1),time:s.time||'00:00',placeId:s.placeId||'',members:s.members||[],text:s.text||''}))};
+      scenes:d.scenes.map(s=>({id:s.id,title:s.title||'',date:s.date||dateStr(dayNum(todayStr())+(Number(s.day)||1)-1),time:s.time||'00:00',...(/^\d{2}:\d{2}$/.test(s.end||'')?{end:s.end}:{}),...(okId(s.after)?{after:s.after}:{}),...(okId(s.until)?{until:s.until}:{}),placeId:s.placeId||'',members:s.members||[],text:s.text||''}))};
     migrate();ui.snapIdx=null;save();closeSheet();render();toast('読み込みました');
   }catch(e){toast('読み込めませんでした。バックアップの内容を確認してください');}
 }
@@ -838,6 +951,8 @@ document.addEventListener('click',e=>{
       const c={id:uid(),name:n,color:COLORS[S.chars.length%COLORS.length],note:''};
       S.chars.push(c);save();ed.d.members.push(c.id);inp.value='';edMembers();edWarn();break;}
     case 'ed-save':edSave();break;
+    case 'ed-smode':ed.smode=t.dataset.m;edTiming();edWarn();break;
+    case 'ed-emode':ed.emode=t.dataset.m;edTiming();edWarn();break;
     case 'ed-del':edDelete();break;
     case 'm-text':ioBox(timelineText(),true,{act:'m-copy',label:'コピーする'});break;
     case 'm-export':ioBox(JSON.stringify(S,null,1),true,{act:'m-copy',label:'コピーする'});break;
@@ -858,6 +973,16 @@ document.addEventListener('keydown',e=>{
   if(e.target.id==='np-name'){e.preventDefault();createProject();}
   else if(e.target.id==='sh-email'){e.preventDefault();shareAdd();}
 });
+document.addEventListener('change',e=>{
+  if(e.target.id==='hideDone'){ui.hideDone=e.target.checked;try{localStorage.setItem('hide-done',ui.hideDone?'1':'0');}catch(_){}paintTl();return;}
+});
+/* 1分ごとに、時刻による表示(まもなく・進行中・終了)を更新 */
+setInterval(()=>{
+  if(!cur||document.hidden)return;
+  if(ui.tab==='timeline'&&$('#tlList'))paintTl();
+  else if(ui.tab==='snap'&&$('#snapBody'))paintSnap();
+},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cur){if(ui.tab==='timeline'&&$('#tlList'))paintTl();else if(ui.tab==='snap'&&$('#snapBody'))paintSnap();}});
 document.addEventListener('change',e=>{if(e.target.id==='fc'){ui.filterChar=e.target.value;paintTl();}});
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&!$('#sheet').hidden){closeSheet();return;}
