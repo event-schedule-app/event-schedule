@@ -189,7 +189,7 @@ body.at-home .tabs{display:none}
 <script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,sendEmailVerification,sendPasswordResetEmail} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import {initializeFirestore,getFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,onSnapshot,writeBatch,setDoc,updateDoc,query,where,arrayUnion,arrayRemove} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import {terminate,clearIndexedDbPersistence,initializeFirestore,getFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,onSnapshot,writeBatch,setDoc,updateDoc,query,where,arrayUnion,arrayRemove} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 /* ===== ここを自分の Firebase の値に書き換える ===== */
 const firebaseConfig={
@@ -208,6 +208,9 @@ const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Math.random().toString(36).slice(2,9);
 const pad=n=>String(n).padStart(2,'0');
+/* 安全対策:IDは英数字・_・- だけ、色は #rrggbb だけを受け付ける */
+const okId=s=>typeof s==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(s);
+const safeColor=c=>/^#[0-9a-fA-F]{6}$/.test(c||'')?c:'#546178';
 
 function blank(){return {title:'名称未設定の予定表',chars:[],places:[],scenes:[]};}
 function loadLocal(){try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&Array.isArray(d.scenes)&&Array.isArray(d.chars)&&Array.isArray(d.places))return d;}}catch(e){}return null;}
@@ -297,7 +300,7 @@ function openProject(pid,data){
     projUnsubs.push(onSnapshot(collection(db,'projects',pid,col),snap=>{
       if(!cur||cur.id!==pid)return;
       const arr=[],m=new Map();
-      snap.forEach(d=>{const v=d.data();v.id=d.id;arr.push(v);m.set(d.id,stable(v));});
+      snap.forEach(d=>{if(!okId(d.id))return;const v=d.data();v.id=d.id;if(Array.isArray(v.members))v.members=v.members.filter(okId);else if(col==='scenes')v.members=[];if(col==='scenes'&&v.placeId&&!okId(v.placeId))v.placeId='';arr.push(v);m.set(d.id,stable(v));});
       if(col!=='scenes')arr.sort((a,b)=>(a.o??0)-(b.o??0));
       S[col]=arr;base[col]=m;loaded[col]=true;
       setSync(snap.metadata.hasPendingWrites?'保存中…':'同期済み');
@@ -354,7 +357,7 @@ function paintShare(){
   const list=(d.emails||[]).slice().sort((a,b)=>(b===d.ownerEmail)-(a===d.ownerEmail));
   box.innerHTML=list.map(e=>{
     const tags=(e===d.ownerEmail?'<span class="tag">オーナー</span>':'<span class="tag">編集者</span>')+(e===me?'<span class="tag">あなた</span>':'');
-    const mail=e!==me?`<a class="btn sm" href="${inviteMail(e)}">招待メール</a>`:'';
+    const mail=e!==me&&EMAIL_RE.test(e)?`<a class="btn sm" href="${esc(inviteMail(e))}">招待メール</a>`:'';
     const del=own&&e!==d.ownerEmail?`<button class="btn sm danger" data-act="sh-del" data-email="${esc(e)}">外す</button>`:'';
     return `<div class="acc"><span>${esc(e)}${tags}</span>${mail}${del}</div>`;
   }).join('');
@@ -379,7 +382,7 @@ function deleteProject(){
 }
 
 /* ===== ログイン ===== */
-const AUTH_ERR={'auth/invalid-email':'メールアドレスの形式が正しくありません','auth/missing-email':'メールアドレスを入力してください','auth/missing-password':'パスワードを入力してください','auth/weak-password':'パスワードは6文字以上にしてください','auth/email-already-in-use':'このメールアドレスはすでに登録されています。ログインするか、Gmail なら「Google でログイン」を試してください','auth/invalid-credential':'メールアドレスかパスワードが違います','auth/invalid-login-credentials':'メールアドレスかパスワードが違います','auth/wrong-password':'メールアドレスかパスワードが違います','auth/user-not-found':'メールアドレスかパスワードが違います','auth/too-many-requests':'試行回数が多すぎます。しばらく待ってからもう一度試してください','auth/network-request-failed':'通信できませんでした','auth/operation-not-allowed':'このログイン方法が Firebase で有効になっていません','auth/unauthorized-domain':'このサイトのドメインが Firebase の承認済みドメインに入っていません','auth/popup-blocked':'ポップアップがブロックされました'};
+const AUTH_ERR={'auth/invalid-email':'メールアドレスの形式が正しくありません','auth/missing-email':'メールアドレスを入力してください','auth/missing-password':'パスワードを入力してください','auth/weak-password':'パスワードは6文字以上にしてください','auth/email-already-in-use':'このメールアドレスはすでに登録されています。ログインするか、Gmail なら「Google でログイン」を試してください','auth/invalid-credential':'メールアドレスかパスワードが違います','auth/invalid-login-credentials':'メールアドレスかパスワードが違います','auth/wrong-password':'メールアドレスかパスワードが違います','auth/user-not-found':'メールアドレスかパスワードが違います','auth/too-many-requests':'試行回数が多すぎます。しばらく待ってからもう一度試してください','auth/network-request-failed':'通信できませんでした','auth/operation-not-allowed':'このログイン方法が Firebase で有効になっていません','auth/unauthorized-domain':'このサイトのドメインが Firebase の承認済みドメインに入っていません','auth/popup-blocked':'ポップアップがブロックされました','auth/password-does-not-meet-requirements':'パスワードが条件を満たしていません。もっと長く、英字と数字を混ぜてください'};
 const authMsg=e=>AUTH_ERR[e&&e.code]||('エラーが発生しました('+(e&&e.code||'不明')+')');
 let authMode='login';
 function showGate(title,text,btns){$('#gate').innerHTML=`<div class="gate-box"><h2>${title}</h2><p>${text}</p><div class="actions">${btns||''}</div></div>`;$('#gate').hidden=false;}
@@ -426,6 +429,12 @@ async function verifyCheck(){
   try{await auth.currentUser.reload();}catch(e){}
   if(auth.currentUser&&auth.currentUser.emailVerified){await auth.currentUser.getIdToken(true);user=auth.currentUser;enterApp();}
   else toast('まだ確認できていません。メールのリンクを開いてから押してください');
+}
+async function logout(){
+  /* 共用パソコン対策:ログアウト時に、この端末に残った予定のキャッシュを消す */
+  try{await signOut(auth);}catch(e){}
+  try{if(listUnsub)listUnsub();closeProject();await terminate(db);await clearIndexedDbPersistence(db);}catch(e){console.warn(e);}
+  location.reload();
 }
 function enterApp(){hideGate();closeProject();S=blank();projects=[];render();listenProjects();}
 function teardown(){if(listUnsub)listUnsub();listUnsub=null;closeProject();projects=[];projectsLoaded=false;closeSheet();S=blank();}
@@ -482,8 +491,8 @@ let ed=null,cd=null,pd=null,confirmDel=false;
 function openSheet(title,html){$('#sheetTitle').textContent=title;$('#sheetBody').innerHTML=html;$('#sheet').hidden=false;document.body.style.overflow='hidden';$('.sheet-panel').scrollTop=0;confirmDel=false;}
 function closeSheet(){$('#sheet').hidden=true;$('#sheetBody').innerHTML='';document.body.style.overflow='';ed=cd=pd=null;confirmDel=false;}
 function chip(c,o={}){
-  const tag=o.btn?'button type="button"':'span',end=o.btn?'button':'span',act=o.btn?` data-act="open-char" data-id="${c.id}"`:'';
-  return `<${tag} class="chip ${o.cls||''}" style="--c:${esc(c.color)}"${act}><i></i><b>${esc(c.name)}</b></${end}>`;
+  const tag=o.btn?'button type="button"':'span',end=o.btn?'button':'span',act=o.btn?` data-act="open-char" data-id="${esc(c.id)}"`:'';
+  return `<${tag} class="chip ${o.cls||''}" style="--c:${safeColor(c.color)}"${act}><i></i><b>${esc(c.name)}</b></${end}>`;
 }
 function emptyBlock(title,text,btns){return `<section class="empty"><h2>${title}</h2><p>${text}</p><div class="actions">${btns}</div></section>`;}
 
@@ -493,7 +502,7 @@ function renderTimeline(v){
     v.innerHTML=emptyBlock('まだ予定がありません','メンバーと場所を登録して、「いつ・どこで・誰が・何をするか」を予定として入れていきます。','<button class="btn pri" data-act="new-scene">最初の予定を追加</button><button class="btn" data-act="sample">サンプルを見る</button>');
     return;
   }
-  v.innerHTML=`<div class="filters"><input type="search" id="q" placeholder="キーワードで探す" aria-label="キーワードで探す" value="${esc(ui.q)}"><select id="fc" aria-label="メンバーで絞り込む"><option value="">全員の予定</option>${S.chars.map(c=>`<option value="${c.id}" ${ui.filterChar===c.id?'selected':''}>${esc(c.name)}が関わる予定</option>`).join('')}</select></div><div id="tlList"></div>`;
+  v.innerHTML=`<div class="filters"><input type="search" id="q" placeholder="キーワードで探す" aria-label="キーワードで探す" value="${esc(ui.q)}"><select id="fc" aria-label="メンバーで絞り込む"><option value="">全員の予定</option>${S.chars.map(c=>`<option value="${esc(c.id)}" ${ui.filterChar===c.id?'selected':''}>${esc(c.name)}が関わる予定</option>`).join('')}</select></div><div id="tlList"></div>`;
   paintTl();
 }
 function paintTl(){
@@ -513,7 +522,7 @@ function paintTl(){
     prevT=T;
     const chips=(sc.members||[]).map(id=>{const c=ch(id);return c?chip(c):'';}).join('');
     const wn=sceneWarnings(sc,sorted).length,p=pl(sc.placeId);
-    html+=`<article class="panel" role="button" tabindex="0" data-act="open-scene" data-id="${sc.id}"><div class="ph"><time>${fmtClock(T)}</time><h3>${esc(sc.title||'(無題)')}</h3>${wn?`<span class="warnb">重複${wn}</span>`:''}</div><div class="pb">${p?`<span class="place-tag">場所:${esc(p.name)}</span><br>`:''}${chips}${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:''}</div></article>`;
+    html+=`<article class="panel" role="button" tabindex="0" data-act="open-scene" data-id="${esc(sc.id)}"><div class="ph"><time>${fmtClock(T)}</time><h3>${esc(sc.title||'(無題)')}</h3>${wn?`<span class="warnb">重複${wn}</span>`:''}</div><div class="pb">${p?`<span class="place-tag">場所:${esc(p.name)}</span><br>`:''}${chips}${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:''}</div></article>`;
   });
   if(curDay!==null)html+='</div>';
   box.innerHTML=html;
@@ -543,7 +552,7 @@ function paintSnap(){
     return `<section class="pl"><h3>${p?esc(p.name):'場所が未設定'}</h3>${last?`<p class="last">直近の予定:${fmtTs(ts(last))}「${esc(last.title||'無題')}」</p>`:''}${list||'<p class="hint" style="margin:0 0 8px">この時点でここに配置されているメンバーはいません</p>'}</section>`;
   }).join('');
   const p=pl(sc.placeId);
-  $('#snapBody').innerHTML=`<div class="now"><div class="ph"><time>${fmtClock(T)}</time><h3>${esc(sc.title||'(無題)')}</h3></div><div class="pb" style="padding-bottom:4px"><span class="place-tag">${fmtDay(Math.floor(T/1440))}${p?`、場所:${esc(p.name)}`:''}</span>${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:'<p class="hint">この予定の文章はまだありません</p>'}<div class="actions" style="margin:10px 0 6px"><button class="btn sm" data-act="open-scene" data-id="${sc.id}">予定を開く</button></div></div></div>
+  $('#snapBody').innerHTML=`<div class="now"><div class="ph"><time>${fmtClock(T)}</time><h3>${esc(sc.title||'(無題)')}</h3></div><div class="pb" style="padding-bottom:4px"><span class="place-tag">${fmtDay(Math.floor(T/1440))}${p?`、場所:${esc(p.name)}`:''}</span>${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:'<p class="hint">この予定の文章はまだありません</p>'}<div class="actions" style="margin:10px 0 6px"><button class="btn sm" data-act="open-scene" data-id="${esc(sc.id)}">予定を開く</button></div></div></div>
   <div class="counters"><div class="cn"><b>${seen.length}</b><span>配置済みのメンバー</span></div><div class="cn"><b>${unseen.length}</b><span>未配置のメンバー</span></div></div>
   <p class="hint" style="margin:0 0 10px">各メンバーは、この予定までに最後に割り当てられた場所に表示しています。</p>
   ${blocks||'<p class="hint">まだメンバーが配置されていません。</p>'}
@@ -557,7 +566,7 @@ function renderPeople(v){
   const sorted=sortedScenes();
   v.innerHTML='<div class="list">'+S.chars.map(c=>{
     const loc=placeAt(c.id,sorted,sorted.length),p=loc.place?pl(loc.place):null,n=sorted.filter(s=>(s.members||[]).includes(c.id)).length;
-    return `<button class="card" data-act="open-char" data-id="${c.id}" style="--c:${esc(c.color)}"><span class="bar"></span><span class="nm">${esc(c.name)}</span><span class="sub">${loc.seen?`直近の配置:${p?esc(p.name):'不明'}、予定${n}件`:'まだどの予定にも入っていません'}</span></button>`;
+    return `<button class="card" data-act="open-char" data-id="${esc(c.id)}" style="--c:${safeColor(c.color)}"><span class="bar"></span><span class="nm">${esc(c.name)}</span><span class="sub">${loc.seen?`直近の配置:${p?esc(p.name):'不明'}、予定${n}件`:'まだどの予定にも入っていません'}</span></button>`;
   }).join('')+'</div>';
 }
 function openChar(id){
@@ -567,11 +576,11 @@ function openChar(id){
   let hist='';
   if(src){
     const rows=sorted.filter(s=>(s.members||[]).includes(id));
-    hist=`<p class="lab" style="margin-top:26px">割り当てられている予定(${rows.length}件)</p>`+(rows.length?rows.map(s=>`<button class="hist" data-act="open-scene" data-id="${s.id}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}${pl(s.placeId)?`、${esc(pl(s.placeId).name)}`:''}</small></button>`).join(''):'<p class="hint">まだ予定がありません</p>');
+    hist=`<p class="lab" style="margin-top:26px">割り当てられている予定(${rows.length}件)</p>`+(rows.length?rows.map(s=>`<button class="hist" data-act="open-scene" data-id="${esc(s.id)}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}${pl(s.placeId)?`、${esc(pl(s.placeId).name)}`:''}</small></button>`).join(''):'<p class="hint">まだ予定がありません</p>');
   }
   openSheet(src?'メンバー':'メンバーを追加',`
   <div class="f"><label for="c-name">名前</label><input id="c-name" type="text" value="${esc(cd.name)}" placeholder="例:篠崎 ミオ"></div>
-  <div class="f"><span class="lab">識別色</span><div class="swatches" id="c-colors">${COLORS.map(col=>`<button type="button" class="sw" data-act="c-color" data-col="${col}" style="--c:${col}" aria-label="色 ${col}" aria-pressed="${cd.color===col}"></button>`).join('')}</div></div>
+  <div class="f"><span class="lab">識別色</span><div class="swatches" id="c-colors">${COLORS.map(col=>`<button type="button" class="sw" data-act="c-color" data-col="${col}" style="--c:${safeColor(col)}" aria-label="色 ${col}" aria-pressed="${cd.color===col}"></button>`).join('')}</div></div>
   <div class="f"><label for="c-note">メモ(担当できること・連絡先・都合のつく時間帯など)</label><textarea id="c-note" placeholder="例:設営と力仕事が得意。午後は不在。">${esc(cd.note)}</textarea></div>
   <div class="actions"><button class="btn pri" data-act="c-save">保存する</button>${src?'<button class="btn danger" data-act="c-del">削除</button>':''}</div>${hist}`);
 }
@@ -595,7 +604,7 @@ function renderPlaces(v){
   v.innerHTML='<div class="list">'+S.places.map(p=>{
     const scs=sorted.filter(s=>s.placeId===p.id),last=scs[scs.length-1];
     const here=S.chars.filter(c=>{const l=placeAt(c.id,sorted,sorted.length);return l.seen&&l.place===p.id;});
-    return `<article class="pl" style="cursor:pointer;margin:0" role="button" tabindex="0" data-act="open-place" data-id="${p.id}"><h3>${esc(p.name)}</h3>${p.note?`<p class="hint" style="margin:0 0 8px">${esc(p.note)}</p>`:''}<p class="hint" style="margin:0 0 8px">${scs.length}件の予定${last?`、最後は${fmtTs(ts(last))}`:''}</p>${here.length?`<p class="last">直近でここに配置されているメンバー</p>`:''}${here.map(c=>chip(c)).join('')}</article>`;
+    return `<article class="pl" style="cursor:pointer;margin:0" role="button" tabindex="0" data-act="open-place" data-id="${esc(p.id)}"><h3>${esc(p.name)}</h3>${p.note?`<p class="hint" style="margin:0 0 8px">${esc(p.note)}</p>`:''}<p class="hint" style="margin:0 0 8px">${scs.length}件の予定${last?`、最後は${fmtTs(ts(last))}`:''}</p>${here.length?`<p class="last">直近でここに配置されているメンバー</p>`:''}${here.map(c=>chip(c)).join('')}</article>`;
   }).join('')+'</div>';
 }
 function openPlace(id){
@@ -606,7 +615,7 @@ function openPlace(id){
   <div class="f"><label for="p-name">場所の名前</label><input id="p-name" type="text" value="${esc(pd.name)}" placeholder="例:体育館"></div>
   <div class="f"><label for="p-note">メモ(広さ・設備・集合の目印など)</label><textarea id="p-note" placeholder="例:50人まで収容。電源は入口側。">${esc(pd.note)}</textarea></div>
   <div class="actions"><button class="btn pri" data-act="p-save">保存する</button>${src?'<button class="btn danger" data-act="p-del">削除</button>':''}</div>
-  ${src?`<p class="lab" style="margin-top:26px">この場所の予定(${scs.length})</p>${scs.map(s=>`<button class="hist" data-act="open-scene" data-id="${s.id}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}</small></button>`).join('')||'<p class="hint">まだありません</p>'}`:''}`);
+  ${src?`<p class="lab" style="margin-top:26px">この場所の予定(${scs.length})</p>${scs.map(s=>`<button class="hist" data-act="open-scene" data-id="${esc(s.id)}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}</small></button>`).join('')||'<p class="hint">まだありません</p>'}`:''}`);
 }
 function savePlace(){
   const name=$('#p-name').value.trim();if(!name){toast('名前を入力してください');return;}
@@ -630,8 +639,8 @@ function openScene(id){
   <div>${chips}</div>
   <div class="story ${sc.text?'':'none'}">${sc.text?esc(sc.text):'やることはまだ書かれていません。「編集」から書き込めます。'}</div>
   ${ws.length?`<p class="lab">重複チェック</p><ul class="warns">${ws.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:''}
-  <div class="actions"><button class="btn pri" data-act="edit-scene" data-id="${sc.id}">編集</button><button class="btn" data-act="snap-to" data-id="${sc.id}">この時点の配置</button></div>
-  <div class="actions" style="margin-top:8px">${prev?`<button class="btn sm" data-act="open-scene" data-id="${prev.id}">◀ 前の予定</button>`:''}${next?`<button class="btn sm" data-act="open-scene" data-id="${next.id}">次の予定 ▶</button>`:''}</div></div>`);
+  <div class="actions"><button class="btn pri" data-act="edit-scene" data-id="${esc(sc.id)}">編集</button><button class="btn" data-act="snap-to" data-id="${esc(sc.id)}">この時点の配置</button></div>
+  <div class="actions" style="margin-top:8px">${prev?`<button class="btn sm" data-act="open-scene" data-id="${esc(prev.id)}">◀ 前の予定</button>`:''}${next?`<button class="btn sm" data-act="open-scene" data-id="${esc(next.id)}">次の予定 ▶</button>`:''}</div></div>`);
 }
 
 /* 予定の編集 */
@@ -645,7 +654,7 @@ function openEditor(id){
   openSheet(src?'予定を編集':'予定を追加',`
   <div class="f"><label for="e-title">予定名</label><input id="e-title" type="text" placeholder="例:受付の設営" value="${esc(d.title)}"></div>
   <div class="row3"><div class="f"><label for="e-date">日にち</label><input id="e-date" type="date" value="${esc(d.date)}"></div><div class="f"><label for="e-time">時刻</label><input id="e-time" type="time" value="${esc(d.time)}"></div></div>
-  <div class="f"><label for="e-place">場所</label><select id="e-place"><option value="">未設定</option>${S.places.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}<option value="__new">＋ 新しい場所を作る</option></select><input id="e-newplace" type="text" hidden placeholder="新しい場所の名前" style="margin-top:8px"></div>
+  <div class="f"><label for="e-place">場所</label><select id="e-place"><option value="">未設定</option>${S.places.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}<option value="__new">＋ 新しい場所を作る</option></select><input id="e-newplace" type="text" hidden placeholder="新しい場所の名前" style="margin-top:8px"></div>
   <div class="f"><span class="lab">担当するメンバー</span><div id="e-members"></div><div class="quick"><input id="e-newchar" type="text" placeholder="メンバーをその場で追加" aria-label="メンバーをその場で追加"><button class="btn sm" data-act="ed-addchar">追加</button></div></div>
   <div class="f"><label for="e-text">やること・内容</label><textarea id="e-text" placeholder="作業内容、持ち物、集合の合図、注意点などを自由に書いてください。">${esc(d.text)}</textarea></div>
   <div id="e-warn"></div>
@@ -665,7 +674,7 @@ function edInput(e){
 }
 function edMembers(){
   const d=ed.d;
-  $('#e-members').innerHTML=S.chars.length?S.chars.map(c=>{const on=d.members.includes(c.id);return `<button type="button" class="chip pick ${on?'on':''}" data-act="ed-mem" data-id="${c.id}" style="--c:${esc(c.color)}" aria-pressed="${on}"><i></i><b>${esc(c.name)}</b></button>`;}).join(''):'<p class="hint">メンバーがまだいません。下の欄から名前を入れて追加できます。</p>';
+  $('#e-members').innerHTML=S.chars.length?S.chars.map(c=>{const on=d.members.includes(c.id);return `<button type="button" class="chip pick ${on?'on':''}" data-act="ed-mem" data-id="${esc(c.id)}" style="--c:${safeColor(c.color)}" aria-pressed="${on}"><i></i><b>${esc(c.name)}</b></button>`;}).join(''):'<p class="hint">メンバーがまだいません。下の欄から名前を入れて追加できます。</p>';
 }
 function edWarn(){
   const d=ed.d,dd={...d,id:d.id||'__new'};
@@ -734,8 +743,10 @@ function importData(){
   try{
     const d=JSON.parse($('#io').value);
     if(!d||!Array.isArray(d.scenes)||!Array.isArray(d.chars)||!Array.isArray(d.places))throw new Error('形式');
+    d.chars=d.chars.filter(c=>c&&okId(c.id));d.places=d.places.filter(p=>p&&okId(p.id));d.scenes=d.scenes.filter(s=>s&&okId(s.id));
+    d.scenes.forEach(s=>{s.members=Array.isArray(s.members)?s.members.filter(okId):[];if(s.placeId&&!okId(s.placeId))s.placeId='';});
     S={title:S.title,
-      chars:d.chars.map(c=>({id:c.id,name:c.name,color:c.color||COLORS[0],note:c.note||''})),
+      chars:d.chars.map(c=>({id:c.id,name:String(c.name||'').slice(0,100),color:safeColor(c.color),note:c.note||''})),
       places:d.places.map(p=>({id:p.id,name:p.name,note:p.note||''})),
       scenes:d.scenes.map(s=>({id:s.id,title:s.title||'',date:s.date||dateStr(dayNum(todayStr())+(Number(s.day)||1)-1),time:s.time||'00:00',placeId:s.placeId||'',members:s.members||[],text:s.text||''}))};
     migrate();ui.snapIdx=null;save();closeSheet();render();toast('読み込みました');
@@ -801,7 +812,7 @@ document.addEventListener('click',e=>{
     case 'auth-reset':resetPass();break;
     case 'verify-check':verifyCheck();break;
     case 'verify-resend':sendEmailVerification(auth.currentUser).then(()=>toast('確認メールを再送しました')).catch(e=>toast(authMsg(e)));break;
-    case 'logout':closeSheet();signOut(auth).catch(()=>{});break;
+    case 'logout':closeSheet();logout();break;
     case 'reload':location.reload();break;
     case 'm-local':{const d=loadLocal();if(!d)break;$('#m-io').innerHTML='';ioBox(JSON.stringify(d),false,{act:'m-doimport',label:'この内容で置き換える'});toast('内容を確認して「この内容で置き換える」を押してください');break;}
     case 'home':goHome();break;
