@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>イベント予定表</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -212,6 +213,10 @@ body.at-home .tabs{display:none}
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,sendEmailVerification,sendPasswordResetEmail} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {terminate,clearIndexedDbPersistence,initializeFirestore,getFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,onSnapshot,writeBatch,setDoc,updateDoc,query,where,arrayUnion,arrayRemove} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+/* よそのサイトの枠(iframe)の中では動かさない:だまして削除ボタンなどを押させる攻撃(クリックジャッキング)対策 */
+let framed=false;try{framed=window.top!==window.self;}catch(e){framed=true;}
+if(framed){document.documentElement.innerHTML='<body style="font:16px sans-serif;padding:24px">このページは、ほかのサイトの中では開けません。直接開いてください。</body>';throw new Error('framed');}
 
 /* ===== ここを自分の Firebase の値に書き換える ===== */
 const firebaseConfig={
@@ -487,11 +492,11 @@ function fmtDay(n){const d=new Date(n*864e5);return `${d.getUTCFullYear()}年${d
 function baseTs(sc){const p=String(sc.time||'00:00').split(':');return dayNum(sc.date)*1440+(Number(p[0])||0)*60+(Number(p[1])||0);}
 const sceneById=id=>id?S.scenes.find(s=>s.id===id):null;
 function tsR(sc,seen){
-  if(sc.after&&!seen.has(sc.id)){const x=sceneById(sc.after);if(x&&x.id!==sc.id){seen.add(sc.id);const e=endTsR(x,seen);return e!=null?e:tsR(x,seen);}}
+  if(sc.after&&!seen.has(sc.id)&&seen.size<60){const x=sceneById(sc.after);if(x&&x.id!==sc.id){seen.add(sc.id);const e=endTsR(x,seen);return e!=null?e:tsR(x,seen);}}
   return baseTs(sc);
 }
 function endTsR(sc,seen){
-  if(sc.until){const y=sceneById(sc.until);if(y&&y.id!==sc.id&&!seen.has(y.id)){const s=tsR(sc,seen),e=tsR(y,seen);return Math.max(e,s);}}
+  if(sc.until&&seen.size<60){const y=sceneById(sc.until);if(y&&y.id!==sc.id&&!seen.has(y.id)){const s=tsR(sc,seen),e=tsR(y,seen);return Math.max(e,s);}}
   if(!sc.end)return null;
   const s=tsR(sc,seen),day=Math.floor(s/1440)*1440;let e=day+mins(sc.end);if(e<=s)e+=1440;return e;
 }
@@ -499,9 +504,9 @@ function ts(sc){return tsR(sc,new Set());}
 const relAfter=sc=>!!(sc.after&&sceneById(sc.after));
 const relUntil=sc=>!!(sc.until&&sceneById(sc.until));
 /* 「○○の後」の連なりの深さ(並べ替えで、前の予定を先に出すため) */
-function depth(sc){let n=0,cur=sc;const seen=new Set();while(cur&&cur.after&&!seen.has(cur.id)&&n<50){seen.add(cur.id);cur=sceneById(cur.after);n++;}return n;}
+function depth(sc){let n=0,cur=sc;const seen=new Set();while(cur&&cur.after&&!seen.has(cur.id)&&n<60){seen.add(cur.id);cur=sceneById(cur.after);n++;}return n;}
 /* sc の「後」の連なりをたどると target に行き着くか(循環を防ぐ) */
-function chainHits(sc,target){let cur=sc;const seen=new Set();while(cur&&!seen.has(cur.id)){if(cur.id===target)return true;seen.add(cur.id);cur=sceneById(cur.after);}return false;}
+function chainHits(sc,target){let cur=sc;const seen=new Set();while(cur&&!seen.has(cur.id)&&seen.size<60){if(cur.id===target)return true;seen.add(cur.id);cur=sceneById(cur.after);}return false;}
 const stitle=sc=>sc?(sc.title||'(無題)'):'(削除された予定)';
 function relLine(sc){
   const a=relAfter(sc)?`「${esc(stitle(sceneById(sc.after)))}」の後`:'';
