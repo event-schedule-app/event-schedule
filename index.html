@@ -104,6 +104,12 @@ button.chip{cursor:pointer}
 .rel{font-size:13px;font-weight:700;color:var(--focus);margin:0 0 6px}
 .mode{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
 .mode button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.chip.grp{background:var(--grid)}
+.chip.grp small{margin-left:2px}
+.dimmed{opacity:.35;pointer-events:none}
+.sublab{display:block;font-size:12px;font-weight:700;color:var(--ink2);margin:10px 0 4px}
+.sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}
+.sec-h h2{font:400 18px/1.3 'Dela Gothic One',sans-serif}
 .warnb{background:var(--warn);color:#fff;font-size:12px;font-weight:700;padding:0 8px;display:flex;align-items:center}
 .pb{padding:10px 12px 0}
 .place-tag{display:inline-block;font-size:12.5px;font-weight:700;color:var(--ink2);margin-bottom:8px}
@@ -228,15 +234,15 @@ const pad=n=>String(n).padStart(2,'0');
 const okId=s=>typeof s==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(s);
 const safeColor=c=>/^#[0-9a-fA-F]{6}$/.test(c||'')?c:'#546178';
 
-function blank(){return {title:'名称未設定の予定表',chars:[],places:[],scenes:[]};}
+function blank(){return {title:'名称未設定の予定表',chars:[],places:[],scenes:[],groups:[]};}
 function loadLocal(){try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&Array.isArray(d.scenes)&&Array.isArray(d.chars)&&Array.isArray(d.places))return d;}}catch(e){}return null;}
 let S=blank();
 
 /* ===== クラウド同期 =====
    プロジェクトを開いている間、S をそのまま編集して save() を呼ぶと、前回の同期内容との差分だけを書き込む */
-const COLS=['chars','places','scenes'];
-const base={chars:new Map(),places:new Map(),scenes:new Map(),title:null};
-const loaded={chars:false,places:false,scenes:false};
+const COLS=['chars','places','scenes','groups'];
+const base={chars:new Map(),places:new Map(),scenes:new Map(),groups:new Map(),title:null};
+const loaded={chars:false,places:false,scenes:false,groups:false};
 let db=null,auth=null,user=null,projUnsubs=[],listUnsub=null,titleTimer=null;
 let projects=[],projectsLoaded=false,cur=null;
 const myEmail=()=>(user?.email||'').toLowerCase();
@@ -253,7 +259,7 @@ function save(){
   if(!db||!user||!cur)return;
   const pid=cur.id,ops=[],now=Date.now();
   S.scenes.forEach(s=>{if(relAfter(s)){const t=ts(s),dd=dateStr(Math.floor(t/1440)),tt=fmtClock(t);if(s.date!==dd)s.date=dd;if(s.time!==tt)s.time=tt;}});
-  ['chars','places'].forEach(col=>S[col].forEach((it,i)=>{if(typeof it.o!=='number')it.o=now+i;}));
+  ['chars','places','groups'].forEach(col=>S[col].forEach((it,i)=>{if(typeof it.o!=='number')it.o=now+i;}));
   COLS.forEach(col=>{
     const seen=new Set();
     S[col].forEach(it=>{
@@ -309,7 +315,7 @@ function openProject(pid,data){
   closeProject();
   const p=data||projects.find(x=>x.id===pid);if(!p)return;
   cur={id:pid,data:p,fresh:!!data};
-  S={title:p.name||'無題のプロジェクト',chars:[],places:[],scenes:[]};
+  S={title:p.name||'無題のプロジェクト',chars:[],places:[],scenes:[],groups:[]};
   COLS.forEach(c=>{base[c]=new Map();loaded[c]=false;});base.title=S.title;
   ui.tab='timeline';ui.q='';ui.filterChar='';ui.snapIdx=null;
   setSync('');render();$('#view').innerHTML='<p class="hint">読み込み中…</p>';window.scrollTo(0,0);
@@ -317,7 +323,7 @@ function openProject(pid,data){
     projUnsubs.push(onSnapshot(collection(db,'projects',pid,col),snap=>{
       if(!cur||cur.id!==pid)return;
       const arr=[],m=new Map();
-      snap.forEach(d=>{if(!okId(d.id))return;const v=d.data();v.id=d.id;if(Array.isArray(v.members))v.members=v.members.filter(okId);else if(col==='scenes')v.members=[];if(col==='scenes'&&v.placeId&&!okId(v.placeId))v.placeId='';if(col==='scenes'){['after','until'].forEach(k=>{if(k in v&&!okId(v[k]))delete v[k];});}arr.push(v);m.set(d.id,stable(v));});
+      snap.forEach(d=>{if(!okId(d.id))return;const v=d.data();v.id=d.id;if(Array.isArray(v.members))v.members=v.members.filter(okId);else if(col==='scenes'||col==='groups')v.members=[];if(col==='scenes'){if(Array.isArray(v.groups))v.groups=v.groups.filter(okId);else delete v.groups;if(v.all!==true)delete v.all;}if(col==='scenes'&&v.placeId&&!okId(v.placeId))v.placeId='';if(col==='scenes'){['after','until'].forEach(k=>{if(k in v&&!okId(v[k]))delete v[k];});}arr.push(v);m.set(d.id,stable(v));});
       if(col!=='scenes')arr.sort((a,b)=>(a.o??0)-(b.o??0));
       S[col]=arr;base[col]=m;loaded[col]=true;
       setSync(snap.metadata.hasPendingWrites?'保存中…':'同期済み');
@@ -524,7 +530,7 @@ const stBadge=st=>st.k?`<span class="st st-${st.k}">${st.l}</span>`:'';
 function sortedScenes(list){return (list||S.scenes).map(s=>[s,ts(s),depth(s)]).sort((a,b)=>a[1]-b[1]||a[2]-b[2]).map(x=>x[0]);}
 
 /* メンバーの居場所:その時点までに最後に登場した予定 */
-function placeAt(cid,sorted,n){let seen=false,place=null,sc=null;for(let i=0;i<n;i++){if((sorted[i].members||[]).includes(cid)){seen=true;place=sorted[i].placeId||null;sc=sorted[i];}}return {seen,place,sc};}
+function placeAt(cid,sorted,n){let seen=false,place=null,sc=null;for(let i=0;i<n;i++){if(effMembers(sorted[i]).includes(cid)){seen=true;place=sorted[i].placeId||null;sc=sorted[i];}}return {seen,place,sc};}
 
 /* 矛盾チェック:同時刻に同じメンバーが別々の場所にいる */
 function sceneWarnings(sc,list){
@@ -533,7 +539,7 @@ function sceneWarnings(sc,list){
   list.forEach(o=>{
     const ot=ts(o),oe=endTs(o)??ot+1;
     if(o===sc||!(t<oe&&ot<te)||!o.placeId||o.placeId===sc.placeId||o.after===sc.id||sc.after===o.id||o.until===sc.id||sc.until===o.id)return;
-    (sc.members||[]).filter(m=>(o.members||[]).includes(m)).forEach(m=>{
+    const om=effMembers(o);effMembers(sc).filter(m=>om.includes(m)).forEach(m=>{
       const c=ch(m);if(!c)return;
       out.push(`${c.name}が同じ時間帯(${fmtTs(Math.max(t,ot))}ごろ)に「${pl(sc.placeId)?.name||'?'}」と「${pl(o.placeId)?.name||'?'}」の両方に割り当てられています(ダブルブッキング)`);
     });
@@ -547,6 +553,43 @@ function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeou
 let ed=null,cd=null,pd=null,confirmDel=false;
 function openSheet(title,html){$('#sheetTitle').textContent=title;$('#sheetBody').innerHTML=html;$('#sheet').hidden=false;document.body.style.overflow='hidden';$('.sheet-panel').scrollTop=0;confirmDel=false;}
 function closeSheet(){$('#sheet').hidden=true;$('#sheetBody').innerHTML='';document.body.style.overflow='';ed=cd=pd=null;confirmDel=false;}
+/* グループと「全員」 */
+const gr=id=>S.groups.find(g=>g.id===id);
+function effMembers(sc){
+  if(sc.all)return S.chars.map(c=>c.id);
+  const set=new Set(sc.members||[]);
+  (sc.groups||[]).forEach(gid=>{const g=gr(gid);if(g)(g.members||[]).forEach(m=>set.add(m));});
+  return [...set];
+}
+/* そのメンバーがこの予定に入っている理由(個人・グループ名・全員) */
+function viaLabel(sc,cid){
+  if(sc.all)return '全員';
+  const gs=(sc.groups||[]).map(gr).filter(g=>g&&(g.members||[]).includes(cid)).map(g=>g.name);
+  if((sc.members||[]).includes(cid))return '';
+  return gs.length?gs.join('・'):'';
+}
+function inFilter(sc,f){
+  if(!f)return true;
+  const k=f.slice(0,2),id=f.slice(2);
+  if(k==='c:')return effMembers(sc).includes(id);
+  if(k==='g:')return !!sc.all||(sc.groups||[]).includes(id);
+  return true;
+}
+function grpChip(label,color,count,o={}){
+  const tag=o.btn?'button type="button"':'span',end=o.btn?'button':'span',act=o.btn&&o.id?` data-act="open-group" data-id="${esc(o.id)}"`:'';
+  return `<${tag} class="chip grp ${o.cls||''}" style="--c:${safeColor(color)}"${act}><i></i><b>${esc(label)}</b><small>${count}人</small></${end}>`;
+}
+function whoChips(sc,o={}){
+  let out='';
+  if(sc.all)return grpChip('全員','#1b2247',S.chars.length);
+  (sc.groups||[]).forEach(gid=>{const g=gr(gid);if(g)out+=grpChip(g.name,g.color,(g.members||[]).filter(ch).length,{btn:o.btn,id:g.id});});
+  (sc.members||[]).forEach(id=>{const c=ch(id);if(c)out+=chip(c,o);});
+  return out;
+}
+function whoText(sc){
+  if(sc.all)return '全員';
+  return [...(sc.groups||[]).map(gr).filter(Boolean).map(g=>g.name+'(グループ)'),...(sc.members||[]).map(id=>ch(id)?.name).filter(Boolean)].join('、');
+}
 function chip(c,o={}){
   const tag=o.btn?'button type="button"':'span',end=o.btn?'button':'span',act=o.btn?` data-act="open-char" data-id="${esc(c.id)}"`:'';
   return `<${tag} class="chip ${o.cls||''}" style="--c:${safeColor(c.color)}"${act}><i></i><b>${esc(c.name)}</b></${end}>`;
@@ -559,7 +602,7 @@ function renderTimeline(v){
     v.innerHTML=emptyBlock('まだ予定がありません','メンバーと場所を登録して、「いつ・どこで・誰が・何をするか」を予定として入れていきます。','<button class="btn pri" data-act="new-scene">最初の予定を追加</button><button class="btn" data-act="sample">サンプルを見る</button>');
     return;
   }
-  v.innerHTML=`<label class="hide-done"><input type="checkbox" id="hideDone" ${ui.hideDone?'checked':''}>終わった予定を隠す</label><div class="filters"><input type="search" id="q" placeholder="キーワードで探す" aria-label="キーワードで探す" value="${esc(ui.q)}"><select id="fc" aria-label="メンバーで絞り込む"><option value="">全員の予定</option>${S.chars.map(c=>`<option value="${esc(c.id)}" ${ui.filterChar===c.id?'selected':''}>${esc(c.name)}が関わる予定</option>`).join('')}</select></div><div id="tlList"></div>`;
+  v.innerHTML=`<label class="hide-done"><input type="checkbox" id="hideDone" ${ui.hideDone?'checked':''}>終わった予定を隠す</label><div class="filters"><input type="search" id="q" placeholder="キーワードで探す" aria-label="キーワードで探す" value="${esc(ui.q)}"><select id="fc" aria-label="メンバーやグループで絞り込む"><option value="">全員の予定</option>${S.chars.length?`<optgroup label="メンバー">${S.chars.map(c=>`<option value="c:${esc(c.id)}" ${ui.filterChar==='c:'+c.id?'selected':''}>${esc(c.name)}の予定</option>`).join('')}</optgroup>`:''}${S.groups.length?`<optgroup label="グループ">${S.groups.map(g=>`<option value="g:${esc(g.id)}" ${ui.filterChar==='g:'+g.id?'selected':''}>${esc(g.name)}の予定</option>`).join('')}</optgroup>`:''}</select></div><div id="tlList"></div>`;
   paintTl();
 }
 function paintTl(){
@@ -567,8 +610,8 @@ function paintTl(){
   const now=nowTs();
   sorted.forEach(sc=>{
     if(ui.hideDone&&status(sc,now).k==='done')return;
-    if(fc&&!(sc.members||[]).includes(fc))return;
-    if(q){const hay=[sc.title,sc.text,pl(sc.placeId)?.name,...(sc.members||[]).map(id=>ch(id)?.name)].join(' ').toLowerCase();if(!hay.includes(q))return;}
+    if(fc&&!inFilter(sc,fc))return;
+    if(q){const hay=[sc.title,sc.text,pl(sc.placeId)?.name,...effMembers(sc).map(id=>ch(id)?.name),...(sc.groups||[]).map(g=>gr(g)?.name),sc.all?'全員':''].join(' ').toLowerCase();if(!hay.includes(q))return;}
     items.push(sc);
   });
   const box=$('#tlList');
@@ -581,7 +624,7 @@ function paintTl(){
     prevT=T;
     if(!marked&&T>now&&d===nowDay){html+=`<div class="nowline">いま ${fmtClock(now)}</div>`;marked=true;}
     if(T>now)marked=true;
-    const chips=(sc.members||[]).map(id=>{const c=ch(id);return c?chip(c):'';}).join('');
+    const chips=whoChips(sc);
     const wn=sceneWarnings(sc,sorted).length,p=pl(sc.placeId),st=status(sc,now);
     html+=`<article class="panel${st.k==='done'?' is-done':st.k==='live'?' is-live':''}" role="button" tabindex="0" data-act="open-scene" data-id="${esc(sc.id)}"><div class="ph"><time>${timeLabel(sc)}</time><h3>${esc(sc.title||'(無題)')}</h3>${wn?`<span class="warnb">重複${wn}</span>`:''}${stBadge(st)}</div><div class="pb">${relLine(sc)}${p?`<span class="place-tag">場所:${esc(p.name)}</span><br>`:''}${chips}${sc.text?`<p class="excerpt">${esc(sc.text)}</p>`:''}</div></article>`;
   });
@@ -623,38 +666,88 @@ function stepSnap(d){const n=ui.snapIdx+d;if(n<0||n>S.scenes.length-1)return;ui.
 
 /* メンバー */
 function renderPeople(v){
-  if(!S.chars.length){v.innerHTML=emptyBlock('メンバーが登録されていません','メンバーを登録しておくと、予定を作るときに選ぶだけで済みます。','<button class="btn pri" data-act="new-char">メンバーを追加</button>');return;}
+  if(!S.chars.length&&!S.groups.length){v.innerHTML=emptyBlock('メンバーが登録されていません','メンバーを登録しておくと、予定を作るときに選ぶだけで済みます。','<button class="btn pri" data-act="new-char">メンバーを追加</button>');return;}
   const sorted=sortedScenes();
-  v.innerHTML='<div class="list">'+S.chars.map(c=>{
-    const loc=placeAt(c.id,sorted,sorted.length),p=loc.place?pl(loc.place):null,n=sorted.filter(s=>(s.members||[]).includes(c.id)).length;
-    return `<button class="card" data-act="open-char" data-id="${esc(c.id)}" style="--c:${safeColor(c.color)}"><span class="bar"></span><span class="nm">${esc(c.name)}</span><span class="sub">${loc.seen?`直近の配置:${p?esc(p.name):'不明'}、予定${n}件`:'まだどの予定にも入っていません'}</span></button>`;
+  const groupsHtml=`<div class="sec-h"><h2>グループ</h2><button class="btn sm" data-act="new-group">＋ グループを作る</button></div>`+(S.groups.length?'<div class="list" style="margin-bottom:26px">'+S.groups.map(g=>{
+    const ms=(g.members||[]).map(ch).filter(Boolean),n=sorted.filter(s=>inFilter(s,'g:'+g.id)).length;
+    return `<button class="card" data-act="open-group" data-id="${esc(g.id)}" style="--c:${safeColor(g.color)}"><span class="bar"></span><span class="nm">${esc(g.name)}(${ms.length}人)</span><span class="sub">${ms.length?esc(ms.map(c=>c.name).join('、')):'まだ誰も入っていません'}、予定${n}件</span></button>`;
+  }).join('')+'</div>':'<p class="hint" style="margin:0 0 26px">「1年生」「受付チーム」のようにまとめておくと、予定にまとめて入れられます。</p>');
+  v.innerHTML=groupsHtml+`<div class="sec-h"><h2>メンバー</h2></div>`+'<div class="list">'+S.chars.map(c=>{
+    const loc=placeAt(c.id,sorted,sorted.length),p=loc.place?pl(loc.place):null,n=sorted.filter(s=>effMembers(s).includes(c.id)).length;
+    const gs=S.groups.filter(g=>(g.members||[]).includes(c.id)).map(g=>g.name);
+    return `<button class="card" data-act="open-char" data-id="${esc(c.id)}" style="--c:${safeColor(c.color)}"><span class="bar"></span><span class="nm">${esc(c.name)}</span><span class="sub">${loc.seen?`直近の配置:${p?esc(p.name):'不明'}、予定${n}件`:'まだどの予定にも入っていません'}${gs.length?`<br>グループ:${esc(gs.join('、'))}`:''}</span></button>`;
   }).join('')+'</div>';
 }
 function openChar(id){
   const src=id?ch(id):null;
   cd=src?{...src}:{id:'',name:'',color:COLORS[S.chars.length%COLORS.length],note:''};
+  cGroups=new Set(src?S.groups.filter(g=>(g.members||[]).includes(id)).map(g=>g.id):[]);
   const sorted=sortedScenes();
   let hist='';
   if(src){
-    const rows=sorted.filter(s=>(s.members||[]).includes(id));
-    hist=`<p class="lab" style="margin-top:26px">割り当てられている予定(${rows.length}件)</p>`+(rows.length?rows.map(s=>`<button class="hist" data-act="open-scene" data-id="${esc(s.id)}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}${pl(s.placeId)?`、${esc(pl(s.placeId).name)}`:''}</small></button>`).join(''):'<p class="hint">まだ予定がありません</p>');
+    const rows=sorted.filter(s=>effMembers(s).includes(id));
+    hist=`<p class="lab" style="margin-top:26px">入っている予定(${rows.length}件)</p>`+(rows.length?`<div class="actions" style="margin:0 0 10px"><button class="btn sm" data-act="filter-by" data-f="c:${esc(id)}">予定表でこの人の予定だけ表示</button></div>`+rows.map(s=>{const via=viaLabel(s,id);return `<button class="hist" data-act="open-scene" data-id="${esc(s.id)}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}${pl(s.placeId)?`、${esc(pl(s.placeId).name)}`:''}${via?`(${esc(via)}として)`:''}</small></button>`;}).join(''):'<p class="hint">まだ予定がありません</p>');
   }
   openSheet(src?'メンバー':'メンバーを追加',`
   <div class="f"><label for="c-name">名前</label><input id="c-name" type="text" value="${esc(cd.name)}" placeholder="例:山田 太郎"></div>
   <div class="f"><span class="lab">識別色</span><div class="swatches" id="c-colors">${COLORS.map(col=>`<button type="button" class="sw" data-act="c-color" data-col="${col}" style="--c:${safeColor(col)}" aria-label="色 ${col}" aria-pressed="${cd.color===col}"></button>`).join('')}</div></div>
+  ${S.groups.length?`<div class="f"><span class="lab">入っているグループ</span><div id="c-groups"></div></div>`:''}
   <div class="f"><label for="c-note">メモ(担当できること・連絡先・都合のつく時間帯など)</label><textarea id="c-note" placeholder="例:設営と力仕事が得意。午後は不在。">${esc(cd.note)}</textarea></div>
   <div class="actions"><button class="btn pri" data-act="c-save">保存する</button>${src?'<button class="btn danger" data-act="c-del">削除</button>':''}</div>${hist}`);
+  paintCGroups();
+}
+let cGroups=new Set();
+function paintCGroups(){
+  const box=$('#c-groups');if(!box)return;
+  box.innerHTML=S.groups.map(g=>{const on=cGroups.has(g.id);return `<button type="button" class="chip pick grp ${on?'on':''}" data-act="c-grp" data-id="${esc(g.id)}" style="--c:${safeColor(g.color)}" aria-pressed="${on}"><i></i><b>${esc(g.name)}</b></button>`;}).join('');
 }
 function saveChar(){
   const name=$('#c-name').value.trim();if(!name){toast('名前を入力してください');return;}
   cd.name=name;cd.note=$('#c-note').value;
   if(cd.id){S.chars[S.chars.findIndex(c=>c.id===cd.id)]=cd;}else{cd.id=uid();S.chars.push(cd);}
+  S.groups.forEach(g=>{const ms=g.members||[],has=ms.includes(cd.id);if(cGroups.has(g.id)&&!has)g.members=ms.concat([cd.id]);else if(!cGroups.has(g.id)&&has)g.members=ms.filter(m=>m!==cd.id);});
   save();closeSheet();render();toast('保存しました');
 }
 function delChar(){
   if(!confirmDel){confirmDel=true;$('[data-act="c-del"]').textContent='もう一度押すと、全予定から外して削除';return;}
   const id=cd.id;S.chars=S.chars.filter(c=>c.id!==id);
   S.scenes.forEach(s=>{s.members=(s.members||[]).filter(m=>m!==id);});
+  S.groups.forEach(g=>{if((g.members||[]).includes(id))g.members=g.members.filter(m=>m!==id);});
+  save();closeSheet();render();toast('削除しました');
+}
+
+/* ----- グループ ----- */
+let gd=null;
+function openGroup(id){
+  const src=id?gr(id):null;
+  gd=src?{...src,members:(src.members||[]).slice()}:{id:'',name:'',color:COLORS[(S.groups.length+3)%COLORS.length],members:[]};
+  const sorted=sortedScenes();
+  let hist='';
+  if(src){
+    const rows=sorted.filter(s=>inFilter(s,'g:'+id));
+    hist=`<p class="lab" style="margin-top:26px">このグループの予定(${rows.length}件)</p>`+(rows.length?`<div class="actions" style="margin:0 0 10px"><button class="btn sm" data-act="filter-by" data-f="g:${esc(id)}">予定表でこのグループの予定だけ表示</button></div>`+rows.map(s=>`<button class="hist" data-act="open-scene" data-id="${esc(s.id)}"><b>${esc(s.title||'(無題)')}</b><small>${fmtTs(ts(s))}${pl(s.placeId)?`、${esc(pl(s.placeId).name)}`:''}${s.all?'(全員として)':''}</small></button>`).join(''):'<p class="hint">まだ予定がありません</p>');
+  }
+  openSheet(src?'グループ':'グループを作る',`
+  <div class="f"><label for="g-name">グループ名</label><input id="g-name" type="text" value="${esc(gd.name)}" placeholder="例:1年生"></div>
+  <div class="f"><span class="lab">識別色</span><div class="swatches" id="g-colors">${COLORS.map(col=>`<button type="button" class="sw" data-act="g-color" data-col="${col}" style="--c:${safeColor(col)}" aria-label="色 ${col}" aria-pressed="${gd.color===col}"></button>`).join('')}</div></div>
+  <div class="f"><span class="lab">グループに入れるメンバー</span><div class="mode"><button type="button" class="btn sm" data-act="g-all">全員を選ぶ</button><button type="button" class="btn sm" data-act="g-none">全員を外す</button></div><div id="g-members"></div><div class="quick"><input id="g-newchar" type="text" placeholder="メンバーをその場で追加" aria-label="メンバーをその場で追加"><button class="btn sm" data-act="g-addchar">追加</button></div><p class="hint">予定に「${src?esc(src.name):'このグループ'}」を入れておくと、あとからグループに入れた人もその予定に入ります。</p></div>
+  <div class="actions"><button class="btn pri" data-act="g-save">保存する</button>${src?'<button class="btn danger" data-act="g-del">削除</button>':''}</div>${hist}`);
+  paintGMembers();
+}
+function paintGMembers(){
+  const box=$('#g-members');if(!box)return;
+  box.innerHTML=S.chars.length?S.chars.map(c=>{const on=gd.members.includes(c.id);return `<button type="button" class="chip pick ${on?'on':''}" data-act="g-mem" data-id="${esc(c.id)}" style="--c:${safeColor(c.color)}" aria-pressed="${on}"><i></i><b>${esc(c.name)}</b></button>`;}).join(''):'<p class="hint">メンバーがまだいません。下の欄から追加できます。</p>';
+}
+function saveGroup(){
+  const name=$('#g-name').value.trim();if(!name){toast('グループ名を入力してください');return;}
+  gd.name=name.slice(0,100);gd.members=gd.members.filter(ch);
+  if(gd.id){S.groups[S.groups.findIndex(g=>g.id===gd.id)]=gd;}else{gd.id=uid();S.groups.push(gd);}
+  save();closeSheet();render();toast('保存しました');
+}
+function delGroup(){
+  if(!confirmDel){confirmDel=true;$('[data-act="g-del"]').textContent='もう一度押すと削除(メンバーは消えません)';return;}
+  const id=gd.id;S.groups=S.groups.filter(g=>g.id!==id);
+  S.scenes.forEach(s=>{if((s.groups||[]).includes(id)){s.groups=s.groups.filter(x=>x!==id);if(!s.groups.length)delete s.groups;}});
   save();closeSheet();render();toast('削除しました');
 }
 
@@ -694,7 +787,7 @@ function delPlace(){
 function openScene(id){
   const sorted=sortedScenes(),sc=sorted.find(s=>s.id===id);if(!sc)return;
   const p=pl(sc.placeId),ws=sceneWarnings(sc,sorted),i=sorted.indexOf(sc);
-  const chips=(sc.members||[]).map(m=>{const c=ch(m);return c?chip(c,{btn:true}):'';}).join('')||'<p class="hint">担当メンバーは未設定です</p>';
+  const chips=whoChips(sc,{btn:true})||'<p class="hint">担当メンバーは未設定です</p>';
   const prev=sorted[i-1],next=sorted[i+1];
   const st=status(sc);
   openSheet(fmtDay(Math.floor(ts(sc)/1440))+' '+timeLabel(sc),`<div class="detail"><h2>${esc(sc.title||'(無題)')}</h2>${relLine(sc)}${st.k?`<p class="place-tag" style="color:${st.k==='live'?'var(--live)':'var(--ink2)'}">${st.k==='soon'?'開始まで'+st.l.replace('あと',''):st.l}</p><br>`:''}${p?`<p class="place-tag">場所:${esc(p.name)}</p>`:''}
@@ -710,7 +803,7 @@ function openEditor(id){
   const src=id?S.scenes.find(s=>s.id===id):null,sorted=sortedScenes();
   let d;
   if(src)d=JSON.parse(JSON.stringify(src));
-  else{const last=sorted[sorted.length-1];d={id:'',title:'',date:last?last.date:todayStr(),time:last?last.time:'08:00',placeId:last?last.placeId||'':'',members:last?(last.members||[]).slice():[],text:''};}
+  else{const last=sorted[sorted.length-1];d={id:'',title:'',date:last?last.date:todayStr(),time:last?last.time:'08:00',placeId:last?last.placeId||'':'',members:last?(last.members||[]).slice():[],...(last&&last.groups?{groups:last.groups.slice()}:{}),...(last&&last.all?{all:true}:{}),text:''};}
   d.members=d.members||[];
   ed={d,smode:d.after&&sceneById(d.after)?'after':'time',emode:d.until&&sceneById(d.until)?'until':(d.end?'time':'none')};
   openSheet(src?'予定を編集':'予定を追加',`
@@ -724,7 +817,7 @@ function openEditor(id){
     <p class="hint" id="e-ehint">終わりがあると「進行中」→「終了」と表示が変わります。ないときは、始まりの時刻を過ぎた時点で「終了」になります。</p></div>
   <p class="hint" id="e-calc" style="margin:-8px 0 18px;font-weight:700"></p>
   <div class="f"><label for="e-place">場所</label><select id="e-place"><option value="">未設定</option>${S.places.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}<option value="__new">＋ 新しい場所を作る</option></select><input id="e-newplace" type="text" hidden placeholder="新しい場所の名前" style="margin-top:8px"></div>
-  <div class="f"><span class="lab">担当するメンバー</span><div id="e-members"></div><div class="quick"><input id="e-newchar" type="text" placeholder="メンバーをその場で追加" aria-label="メンバーをその場で追加"><button class="btn sm" data-act="ed-addchar">追加</button></div></div>
+  <div class="f"><span class="lab">担当するメンバー</span><div class="mode"><button type="button" class="btn sm" data-act="ed-all">全員</button></div><div id="e-pick"><span class="sublab">グループ</span><div id="e-groups"></div><span class="sublab">個人</span><div id="e-members"></div></div><p class="hint" id="e-who"></p><div class="quick"><input id="e-newchar" type="text" placeholder="メンバーをその場で追加" aria-label="メンバーをその場で追加"><button class="btn sm" data-act="ed-addchar">追加</button></div></div>
   <div class="f"><label for="e-text">やること・内容</label><textarea id="e-text" placeholder="作業内容、持ち物、集合の合図、注意点などを自由に書いてください。">${esc(d.text)}</textarea></div>
   <div id="e-warn"></div>
   <div class="actions"><button class="btn pri" data-act="ed-save">保存する</button>${src?'<button class="btn danger" data-act="ed-del">削除</button>':''}</div>`);
@@ -775,6 +868,12 @@ function edInput(e){
 }
 function edMembers(){
   const d=ed.d;
+  d.groups=d.groups||[];
+  $('[data-act="ed-all"]').setAttribute('aria-pressed',!!d.all);
+  $('#e-pick').classList.toggle('dimmed',!!d.all);
+  $('#e-groups').innerHTML=S.groups.length?S.groups.map(g=>{const on=d.groups.includes(g.id);return `<button type="button" class="chip pick grp ${on?'on':''}" data-act="ed-grp" data-id="${esc(g.id)}" style="--c:${safeColor(g.color)}" aria-pressed="${on}"><i></i><b>${esc(g.name)}</b><small>${(g.members||[]).filter(ch).length}人</small></button>`;}).join(''):'<p class="hint" style="margin:0">グループはまだありません。「メンバー」タブで作れます。</p>';
+  const n=effMembers(d).filter(ch).length;
+  $('#e-who').textContent=d.all?`全員(${S.chars.length}人)が担当します。あとから追加したメンバーも含みます。`:(n?`合計 ${n}人`:'');
   $('#e-members').innerHTML=S.chars.length?S.chars.map(c=>{const on=d.members.includes(c.id);return `<button type="button" class="chip pick ${on?'on':''}" data-act="ed-mem" data-id="${esc(c.id)}" style="--c:${safeColor(c.color)}" aria-pressed="${on}"><i></i><b>${esc(c.name)}</b></button>`;}).join(''):'<p class="hint">メンバーがまだいません。下の欄から名前を入れて追加できます。</p>';
 }
 function edWarn(){
@@ -786,6 +885,7 @@ function edWarn(){
 function edSave(){
   const d=ed.d;
   if($('#e-place').value==='__new'){const n=$('#e-newplace').value.trim();if(n){const p={id:uid(),name:n,note:''};S.places.push(p);d.placeId=p.id;}else d.placeId='';}
+  if(d.all){d.all=true;d.members=[];delete d.groups;}else{delete d.all;d.groups=(d.groups||[]).filter(gr);if(!d.groups.length)delete d.groups;}
   if(ed.smode==='after'&&!d.after){toast('どの予定の後か選んでください');return;}
   if(ed.emode==='until'&&!d.until){toast('どの予定までか選んでください');return;}
   if(ed.emode==='time'&&!/^\d{2}:\d{2}$/.test(d.end||'')){toast('終了時刻を入れてください');return;}
@@ -814,7 +914,7 @@ function timelineText(){
     if(d!==day){out+=`\n■ ${fmtDay(d)}\n`;day=d;}
     out+=`\n[${timeLabel(sc)}] ${sc.title||'(無題)'}${p?` @${p.name}`:''}\n`;
     if(relAfter(sc)||relUntil(sc))out+=`  時間:${relAfter(sc)?`「${stitle(sceneById(sc.after))}」の後`:''}${relAfter(sc)&&relUntil(sc)?' 〜 ':''}${relUntil(sc)?`「${stitle(sceneById(sc.until))}」まで`:''}\n`;
-    const who=(sc.members||[]).map(id=>ch(id)?.name).filter(Boolean).join('、');
+    const who=whoText(sc);
     if(who)out+=`  担当:${who}\n`;
     if(sc.text)out+=sc.text.split('\n').map(l=>'  '+l).join('\n')+'\n';
   });
@@ -857,17 +957,20 @@ function importData(){
     const d=JSON.parse($('#io').value);
     if(!d||!Array.isArray(d.scenes)||!Array.isArray(d.chars)||!Array.isArray(d.places))throw new Error('形式');
     d.chars=d.chars.filter(c=>c&&okId(c.id));d.places=d.places.filter(p=>p&&okId(p.id));d.scenes=d.scenes.filter(s=>s&&okId(s.id));
-    d.scenes.forEach(s=>{s.members=Array.isArray(s.members)?s.members.filter(okId):[];if(s.placeId&&!okId(s.placeId))s.placeId='';});
+    d.groups=Array.isArray(d.groups)?d.groups.filter(g=>g&&okId(g.id)):[];d.groups.forEach(g=>{g.members=Array.isArray(g.members)?g.members.filter(okId):[];});
+    d.scenes.forEach(s=>{s.members=Array.isArray(s.members)?s.members.filter(okId):[];s.groups=Array.isArray(s.groups)?s.groups.filter(okId):[];if(s.placeId&&!okId(s.placeId))s.placeId='';});
     S={title:S.title,
       chars:d.chars.map(c=>({id:c.id,name:String(c.name||'').slice(0,100),color:safeColor(c.color),note:c.note||''})),
       places:d.places.map(p=>({id:p.id,name:p.name,note:p.note||''})),
-      scenes:d.scenes.map(s=>({id:s.id,title:s.title||'',date:s.date||dateStr(dayNum(todayStr())+(Number(s.day)||1)-1),time:s.time||'00:00',...(/^\d{2}:\d{2}$/.test(s.end||'')?{end:s.end}:{}),...(okId(s.after)?{after:s.after}:{}),...(okId(s.until)?{until:s.until}:{}),placeId:s.placeId||'',members:s.members||[],text:s.text||''}))};
+      scenes:d.scenes.map(s=>({id:s.id,title:s.title||'',date:s.date||dateStr(dayNum(todayStr())+(Number(s.day)||1)-1),time:s.time||'00:00',...(/^\d{2}:\d{2}$/.test(s.end||'')?{end:s.end}:{}),...(okId(s.after)?{after:s.after}:{}),...(okId(s.until)?{until:s.until}:{}),placeId:s.placeId||'',members:s.members||[],...(s.groups.length?{groups:s.groups}:{}),...(s.all===true?{all:true}:{}),text:s.text||''})),
+      groups:d.groups.map(g=>({id:g.id,name:String(g.name||'').slice(0,100),color:safeColor(g.color),members:g.members}))};
     migrate();ui.snapIdx=null;save();closeSheet();render();toast('読み込みました');
   }catch(e){toast('読み込めませんでした。バックアップの内容を確認してください');}
 }
 function loadSample(){
   S={
     title:S.title,
+    groups:[{id:'g1',name:'受付チーム',color:'#1f9a8a',members:['c2','c3'],o:1}],
     places:[{id:'p1',name:'本部テント',note:'集合と連絡の拠点。無線の充電器あり。'},{id:'p2',name:'正門',note:'来場者の受付。'},{id:'p3',name:'体育館',note:'ステージ発表の会場。'},{id:'p4',name:'模擬店エリア',note:'屋台が並ぶ中庭。'}],
     chars:[
       {id:'c1',name:'篠崎 ミオ',color:'#2f5fd0',note:'総務リーダー。全体の進行管理。'},
@@ -875,8 +978,8 @@ function loadSample(){
       {id:'c3',name:'早川 ナナ',color:'#1f9a8a',note:'受付担当。接客に慣れている。'},
       {id:'c4',name:'黒木先生',color:'#c48a1a',note:'顧問。ステージの責任者。'}],
     scenes:[
-      {id:'s1',title:'朝礼',date:'2026-11-21',time:'07:30',placeId:'p1',members:['c1','c2','c3','c4'],text:'全員集合。持ち場と1日の流れを確認し、無線機を配る。'},
-      {id:'s2',title:'受付の設営',date:'2026-11-21',time:'08:30',placeId:'p2',members:['c2','c3'],text:'受付机を2卓出し、案内看板を立てる。釣り銭箱はミオから受け取る。'},
+      {id:'s1',title:'朝礼',date:'2026-11-21',time:'07:30',placeId:'p1',members:[],all:true,text:'全員集合。持ち場と1日の流れを確認し、無線機を配る。'},
+      {id:'s2',title:'受付の設営',date:'2026-11-21',time:'08:30',placeId:'p2',members:[],groups:['g1'],text:'受付机を2卓出し、案内看板を立てる。釣り銭箱はミオから受け取る。'},
       {id:'s3',title:'ステージのリハーサル',date:'2026-11-21',time:'08:30',placeId:'p3',members:['c1','c4'],text:'音響チェックと進行の通し練習。タイムキーパーはミオ。'},
       {id:'s4',title:'昼の混雑対応',date:'2026-11-21',time:'12:00',placeId:'p4',members:['c2','c3','c4'],text:'行列の整理と誘導。ゴミ箱の回収は13時までに1回行う。'},
       {id:'s5',title:'撤収と日報',date:'2026-11-21',time:'17:00',placeId:'p1',members:['c1','c2','c3','c4'],text:'備品を数えて倉庫へ戻す。日報は各自ミオに提出。'},
@@ -945,6 +1048,19 @@ document.addEventListener('click',e=>{
     case 'c-color':cd.color=t.dataset.col;document.querySelectorAll('#c-colors .sw').forEach(b=>b.setAttribute('aria-pressed',b.dataset.col===cd.color));break;
     case 'p-save':savePlace();break;
     case 'p-del':delPlace();break;
+    case 'ed-all':{ed.d.all=!ed.d.all;edMembers();edWarn();break;}
+    case 'ed-grp':{const d=ed.d;d.groups=d.groups||[];const i=d.groups.indexOf(id);if(i>=0)d.groups.splice(i,1);else d.groups.push(id);edMembers();edWarn();break;}
+    case 'new-group':openGroup();break;
+    case 'open-group':openGroup(id);break;
+    case 'g-save':saveGroup();break;
+    case 'g-del':delGroup();break;
+    case 'g-color':gd.color=t.dataset.col;document.querySelectorAll('#g-colors .sw').forEach(b=>b.setAttribute('aria-pressed',b.dataset.col===gd.color));break;
+    case 'g-mem':{const i=gd.members.indexOf(id);if(i>=0)gd.members.splice(i,1);else gd.members.push(id);paintGMembers();break;}
+    case 'g-all':gd.members=S.chars.map(c=>c.id);paintGMembers();break;
+    case 'g-none':gd.members=[];paintGMembers();break;
+    case 'g-addchar':{const inp=$('#g-newchar'),n=inp.value.trim();if(!n){toast('名前を入力してください');break;}const c={id:uid(),name:n.slice(0,100),color:COLORS[S.chars.length%COLORS.length],note:''};S.chars.push(c);save();gd.members.push(c.id);inp.value='';paintGMembers();break;}
+    case 'c-grp':{if(cGroups.has(id))cGroups.delete(id);else cGroups.add(id);paintCGroups();break;}
+    case 'filter-by':{ui.filterChar=t.dataset.f;ui.tab='timeline';closeSheet();render();window.scrollTo(0,0);toast('絞り込みました。解除は「全員の予定」を選びます');break;}
     case 'ed-mem':{const d=ed.d,i=d.members.indexOf(id);if(i>=0)d.members.splice(i,1);else d.members.push(id);edMembers();edWarn();break;}
     case 'ed-addchar':{
       const inp=$('#e-newchar'),n=inp.value.trim();if(!n){toast('名前を入力してください');break;}
@@ -959,7 +1075,7 @@ document.addEventListener('click',e=>{
     case 'm-import':ioBox('',false,{act:'m-doimport',label:'この内容で置き換える'});break;
     case 'm-copy':copyIo();break;
     case 'm-doimport':importData();break;
-    case 'm-clear':{if(!confirmDel){confirmDel=true;t.textContent='もう一度押すと全データを消去';break;}S={title:S.title,chars:[],places:[],scenes:[]};ui.snapIdx=null;save();closeSheet();render();toast('消去しました');break;}
+    case 'm-clear':{if(!confirmDel){confirmDel=true;t.textContent='もう一度押すと全データを消去';break;}S={title:S.title,chars:[],places:[],scenes:[],groups:[]};ui.snapIdx=null;save();closeSheet();render();toast('消去しました');break;}
   }
 });
 document.addEventListener('input',e=>{
